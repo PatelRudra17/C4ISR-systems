@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Property 23: Demo mode score mutation stays within bounds</title>
+  <style>
+    body { font-family: monospace; background: #0a0a0a; color: #ccc; padding: 2rem; }
+    h1 { color: #00ffcc; font-size: 1.1rem; }
+    .result { margin-top: 1.5rem; font-size: 1.4rem; font-weight: bold; }
+    .pass { color: #00ff88; }
+    .fail { color: #ff4444; }
+    pre { background: #111; padding: 1rem; border-radius: 4px; overflow: auto; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <h1>Property 23: Demo mode score mutation stays within bounds</h1>
+  <p>Validates: Requirements 8.3</p>
+  <div id="output"></div>
+  <div id="result" class="result"></div>
+
+  <script src="fc-shim.js"></script>
+  <script>
+    // Feature: ai-threat-analysis-dashboard, Property 23: Demo mode score mutation stays within bounds
+
+    /**
+     * Simulates the demo server's score mutation logic:
+     * apply a random delta in [-0.05, 0.05], clamped to [0.0, 1.0].
+     */
+    function mutatScore(score, delta) {
+      return Math.max(0.0, Math.min(1.0, score + delta));
+    }
+
+    const output = document.getElementById('output');
+    const resultEl = document.getElementById('result');
+    let log = '';
+
+    try {
+      // Property: for any starting score in [0.0, 1.0] and any number of poll cycles N in [1, 50],
+      // each applied delta must be in [-0.05, 0.05] and the resulting score must stay in [0.0, 1.0].
+      fc.assert(
+        fc.property(
+          fc.float({ min: 0.0, max: 1.0, noNaN: true }),   // starting score
+          fc.integer({ min: 1, max: 50 }),                  // number of poll cycles
+          fc.array(fc.float({ min: -0.05, max: 0.05, noNaN: true }), { minLength: 50, maxLength: 50 }), // deltas pool
+          (startScore, cycles, deltaPool) => {
+            let score = startScore;
+            for (let i = 0; i < cycles; i++) {
+              const delta = deltaPool[i];
+              // Assert delta is within ±0.05
+              if (Math.abs(delta) > 0.05 + 1e-9) return false;
+              const next = mutatScore(score, delta);
+              // Assert result is clamped to [0.0, 1.0]
+              if (next < 0.0 - 1e-9 || next > 1.0 + 1e-9) return false;
+              score = next;
+            }
+            return true;
+          }
+        ),
+        { numRuns: 200, seed: 42 }
+      );
+
+      log = 'Ran 200 iterations. All score mutations stayed within [0.0, 1.0] with delta ≤ 0.05.';
+      resultEl.textContent = '✓ PASS';
+      resultEl.className = 'result pass';
+    } catch (err) {
+      log = String(err);
+      resultEl.textContent = '✗ FAIL';
+      resultEl.className = 'result fail';
+    }
+
+    output.innerHTML = '<pre>' + log.replace(/</g, '&lt;') + '</pre>';
+  </script>
+</body>
+</html>

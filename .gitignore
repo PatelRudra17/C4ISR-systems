@@ -1,0 +1,62 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# Environment
+.env
+.env.local
+*.env
+
+# Database
+*.db
+*.sqlite3
+postgres-data/
+influx-data/
+redis-data/
+
+# Logs
+logs/
+*.log
+
+# Certificates
+certs/*.key
+certs/*.crt
+certs/*.pem
+
+# Models
+models/*.pt
+models/*.onnx
+models/*.h5
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+*.bak
+
+# Docker
+.dockerignore
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# Distribution
+dist/
+build/
+*.egg-info/

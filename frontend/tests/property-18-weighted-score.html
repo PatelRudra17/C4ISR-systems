@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Property 18: Weighted confidence score computation</title>
+  <style>
+    body { font-family: monospace; background: #0a0a0a; color: #ccc; padding: 2rem; }
+    h1 { color: #00ffcc; font-size: 1.1rem; }
+    .result { margin-top: 1.5rem; font-size: 1.4rem; font-weight: bold; }
+    .pass { color: #00ff88; }
+    .fail { color: #ff4444; }
+    pre { background: #111; padding: 1rem; border-radius: 4px; overflow: auto; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <h1>Property 18: Weighted confidence score computation</h1>
+  <p>Validates: Requirements 6.6</p>
+  <div id="output"></div>
+  <div id="result" class="result"></div>
+
+  <script src="fc-shim.js"></script>
+  <script src="../threat-analysis.js"></script>
+  <script>
+    // Feature: ai-threat-analysis-dashboard, Property 18: Weighted confidence score computation
+
+    const output = document.getElementById('output');
+    const resultEl = document.getElementById('result');
+
+    const dashboard = new ThreatDashboard('http://localhost:8000');
+
+    const MODEL_WEIGHTS = {
+      radar_classification: 0.35,
+      visual_recognition: 0.30,
+      behavioral_analysis: 0.20,
+      signal_intelligence: 0.15
+    };
+
+    // Compute expected weighted score manually for verification
+    function expectedScore(breakdown) {
+      let weightedSum = 0;
+      let totalWeight = 0;
+      for (const [key, weight] of Object.entries(MODEL_WEIGHTS)) {
+        const entry = breakdown[key];
+        let score = null;
+        if (entry !== null && entry !== undefined) {
+          if (typeof entry === 'object') score = entry.score;
+          else if (typeof entry === 'number') score = entry;
+        }
+        if (score !== null && score !== undefined) {
+          weightedSum += score * weight;
+          totalWeight += weight;
+        }
+      }
+      if (totalWeight === 0) return null;
+      return weightedSum / totalWeight;
+    }
+
+    // Arbitrary: nullable score (null or float in [0,1])
+    const nullableScore = fc.oneof(
+      fc.constant(null),
+      fc.float({ min: 0.0, max: 1.0, noNaN: true })
+    );
+
+    // Generate a breakdown object where each key maps to either null or a score number
+    const breakdownArb = fc.record({
+      radar_classification: nullableScore,
+      visual_recognition: nullableScore,
+      behavioral_analysis: nullableScore,
+      signal_intelligence: nullableScore
+    });
+
+    try {
+      fc.assert(
+        fc.property(
+          breakdownArb,
+          (breakdown) => {
+            const result = dashboard._computeWeightedScore(breakdown);
+            const expected = expectedScore(breakdown);
+
+            // Both null case
+            if (expected === null) return result === null;
+
+            // Both should be numbers
+            if (result === null) return false;
+
+            // Allow small floating-point tolerance
+            return Math.abs(result - expected) < 1e-9;
+          }
+        ),
+        { numRuns: 200 }
+      );
+
+      output.innerHTML = '<pre>200 runs completed.\nAll breakdown objects (with some null scores) produced correct weighted average:\n  - Non-null scores weighted by their model weights\n  - Remaining weights renormalized when sub-models are absent\n  - Returns null when all scores are null</pre>';
+      resultEl.textContent = '✓ PASS';
+      resultEl.className = 'result pass';
+    } catch (err) {
+      output.innerHTML = '<pre>' + String(err).replace(/</g, '&lt;') + '</pre>';
+      resultEl.textContent = '✗ FAIL';
+      resultEl.className = 'result fail';
+    }
+  </script>
+</body>
+</html>

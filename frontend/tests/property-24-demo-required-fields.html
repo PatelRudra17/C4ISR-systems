@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Property 24: Demo threats include all required fields</title>
+  <style>
+    body { font-family: monospace; background: #0a0a0a; color: #ccc; padding: 2rem; }
+    h1 { color: #00ffcc; font-size: 1.1rem; }
+    .result { margin-top: 1.5rem; font-size: 1.4rem; font-weight: bold; }
+    .pass { color: #00ff88; }
+    .fail { color: #ff4444; }
+    .warn { color: #ffaa00; }
+    pre { background: #111; padding: 1rem; border-radius: 4px; overflow: auto; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <h1>Property 24: Demo threats include all required fields</h1>
+  <p>Validates: Requirements 8.1</p>
+  <div id="output"></div>
+  <div id="result" class="result"></div>
+
+  <script src="fc-shim.js"></script>
+  <script>
+    // Feature: ai-threat-analysis-dashboard, Property 24: Demo threats include all required fields
+
+    const ENDPOINT = 'http://localhost:8000/api/v1/threats/active';
+    const output = document.getElementById('output');
+    const resultEl = document.getElementById('result');
+
+    /**
+     * Checks that a single threat object has all required enriched fields:
+     * - ai_confidence: non-null number
+     * - confidence_breakdown: non-null object with the 4 sub-model keys
+     * - pattern_id: non-null string
+     */
+    function hasRequiredFields(threat) {
+      if (threat.ai_confidence === null || threat.ai_confidence === undefined) return false;
+      if (typeof threat.ai_confidence !== 'number') return false;
+      if (!threat.confidence_breakdown || typeof threat.confidence_breakdown !== 'object') return false;
+      const requiredKeys = ['radar_classification', 'visual_recognition', 'behavioral_analysis', 'signal_intelligence'];
+      for (const key of requiredKeys) {
+        if (!(key in threat.confidence_breakdown)) return false;
+      }
+      if (!threat.pattern_id) return false;
+      return true;
+    }
+
+    async function runTest() {
+      let threats;
+      try {
+        const resp = await fetch(ENDPOINT);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        threats = await resp.json();
+      } catch (err) {
+        output.innerHTML = '<pre>Could not reach demo server at ' + ENDPOINT + '\n' + String(err) + '</pre>';
+        resultEl.textContent = '⚠ SKIPPED (server not reachable)';
+        resultEl.className = 'result warn';
+        return;
+      }
+
+      if (!Array.isArray(threats) || threats.length === 0) {
+        output.innerHTML = '<pre>Endpoint returned empty or non-array response.</pre>';
+        resultEl.textContent = '✗ FAIL — no threats returned';
+        resultEl.className = 'result fail';
+        return;
+      }
+
+      // Use fast-check to verify the property over the returned threats array.
+      // We treat each element of the array as an arbitrary value and assert the property.
+      let log = `Fetched ${threats.length} threat(s) from ${ENDPOINT}\n\n`;
+      let allPass = true;
+      const failures = [];
+
+      for (const threat of threats) {
+        if (!hasRequiredFields(threat)) {
+          allPass = false;
+          failures.push(JSON.stringify(threat, null, 2));
+        }
+      }
+
+      // Additionally use fast-check to verify the property holds for all items
+      // by treating the fetched array as the universe of inputs.
+      try {
+        fc.assert(
+          fc.property(
+            fc.constantFrom(...threats),
+            (threat) => hasRequiredFields(threat)
+          ),
+          { numRuns: Math.min(threats.length * 10, 500) }
+        );
+        log += 'fast-check: all sampled threats passed required-fields check.\n';
+      } catch (err) {
+        allPass = false;
+        log += 'fast-check counterexample:\n' + String(err) + '\n';
+      }
+
+      if (failures.length > 0) {
+        log += '\nFailing threats:\n' + failures.join('\n---\n');
+      } else {
+        log += '\nAll ' + threats.length + ' threats have non-null ai_confidence, confidence_breakdown, and pattern_id.';
+      }
+
+      output.innerHTML = '<pre>' + log.replace(/</g, '&lt;') + '</pre>';
+      if (allPass) {
+        resultEl.textContent = '✓ PASS';
+        resultEl.className = 'result pass';
+      } else {
+        resultEl.textContent = '✗ FAIL';
+        resultEl.className = 'result fail';
+      }
+    }
+
+    runTest();
+  </script>
+</body>
+</html>

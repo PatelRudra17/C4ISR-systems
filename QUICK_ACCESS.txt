@@ -1,0 +1,29 @@
+═══════════════════════════════════════════════════════════
+  AEGIS C4ISR - Quick Access Guide
+═══════════════════════════════════════════════════════════
+
+🎯 FRONTEND UI (Works Immediately):
+   Open this in your browser:
+   file:///C:/Users/Rudra/OneDrive/Desktop/c4isr/frontend/index.html
+
+   This shows the tactical interface with all 6 modules working!
+
+🔧 FULL SYSTEM (After Docker finishes):
+   • Frontend:    https://localhost
+   • API Docs:    https://localhost/docs
+   • Health:      https://localhost/api/health
+
+📋 DEFAULT LOGIN:
+   Username: CDR.ADMIN
+   Password: AEGIS@Command2026!
+
+🐳 CHECK DOCKER STATUS:
+   docker-compose ps
+
+📊 VIEW LOGS:
+   docker-compose logs -f aegis-api
+
+🛑 STOP SERVICES:
+   docker-compose down
+
+═══════════════════════════════════════════════════════════

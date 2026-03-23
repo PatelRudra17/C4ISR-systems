@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Property 21: Trend indicators reflect count direction</title>
+  <style>
+    body { font-family: monospace; background: #0a0a0a; color: #ccc; padding: 2rem; }
+    h1 { color: #00ffcc; font-size: 1.1rem; }
+    .result { margin-top: 1.5rem; font-size: 1.4rem; font-weight: bold; }
+    .pass { color: #00ff88; }
+    .fail { color: #ff4444; }
+    pre { background: #111; padding: 1rem; border-radius: 4px; overflow: auto; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <h1>Property 21: Trend indicators reflect count direction</h1>
+  <p>Validates: Requirements 7.4</p>
+  <div id="output"></div>
+  <div id="result" class="result"></div>
+
+  <script src="fc-shim.js"></script>
+  <script src="../threat-analysis.js"></script>
+  <script>
+    // Feature: ai-threat-analysis-dashboard, Property 21: Trend indicators reflect count direction
+
+    const output = document.getElementById('output');
+    const resultEl = document.getElementById('result');
+
+    const dashboard = new ThreatDashboard('http://localhost:8000');
+
+    try {
+      fc.assert(
+        fc.property(
+          fc.integer({ min: 0, max: 1000 }),
+          fc.integer({ min: 0, max: 1000 }),
+          (prev, next) => {
+            const indicator = dashboard._getTrendIndicator(prev, next);
+            if (next > prev) return indicator === '↑';
+            if (next < prev) return indicator === '↓';
+            return indicator === '—';
+          }
+        ),
+        { numRuns: 200 }
+      );
+
+      output.innerHTML = '<pre>200 runs completed.\nAll (prev, next) integer pairs produced correct trend indicator:\n  next > prev → ↑\n  next < prev → ↓\n  next === prev → —</pre>';
+      resultEl.textContent = '✓ PASS';
+      resultEl.className = 'result pass';
+    } catch (err) {
+      output.innerHTML = '<pre>' + String(err).replace(/</g, '&lt;') + '</pre>';
+      resultEl.textContent = '✗ FAIL';
+      resultEl.className = 'result fail';
+    }
+  </script>
+</body>
+</html>

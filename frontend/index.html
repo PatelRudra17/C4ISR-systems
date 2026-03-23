@@ -1,0 +1,2501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AEGIS C4ISR - Unified Command Platform</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Rajdhani:wght@400;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <!-- API Integration -->
+    <script src="app.js" defer></script>
+    <script src="app-enhanced.js" defer></script>
+    <script src="threat-analysis.js" defer></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-dark: #020509;
+            --bg-panel: #0a0f1a;
+            --border-color: #1a3a52;
+            --cyan: #00c8ff;
+            --green: #00ff88;
+            --red: #ff3344;
+            --amber: #ffaa00;
+            --text-primary: #e0e6ed;
+            --text-secondary: #8a9aa8;
+        }
+
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            overflow-x: hidden;
+        }
+
+        /* Scanline overlay effect */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: repeating-linear-gradient(
+                0deg,
+                rgba(0, 0, 0, 0.15),
+                rgba(0, 0, 0, 0.15) 1px,
+                transparent 1px,
+                transparent 2px
+            );
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+        /* Top Bar */
+        .topbar {
+            height: 48px;
+            background: var(--bg-panel);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            justify-content: space-between;
+        }
+
+        .logo {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 24px;
+            font-weight: 900;
+            color: var(--cyan);
+            text-shadow: 0 0 10px var(--cyan);
+            letter-spacing: 3px;
+        }
+
+        .status-pills {
+            display: flex;
+            gap: 12px;
+        }
+
+        .pill {
+            padding: 4px 12px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .pill.nominal { background: rgba(0, 255, 136, 0.2); color: var(--green); border: 1px solid var(--green); }
+        .pill.warning { background: rgba(255, 170, 0, 0.2); color: var(--amber); border: 1px solid var(--amber); }
+        .pill.critical { background: rgba(255, 51, 68, 0.2); color: var(--red); border: 1px solid var(--red); }
+
+        .stats-summary {
+            display: flex;
+            gap: 20px;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 13px;
+        }
+
+        .stat-item {
+            display: flex;
+            gap: 6px;
+        }
+
+        .stat-label { color: var(--text-secondary); }
+        .stat-value { color: var(--cyan); font-weight: bold; }
+
+        .utc-clock {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 14px;
+            color: var(--cyan);
+            min-width: 120px;
+            text-align: right;
+        }
+
+        /* Alert Ticker */
+        .alert-ticker {
+            height: 28px;
+            background: linear-gradient(90deg, rgba(255, 51, 68, 0.1), rgba(255, 51, 68, 0.05));
+            border-bottom: 1px solid var(--red);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .ticker-icon {
+            color: var(--red);
+            font-size: 16px;
+            margin-right: 12px;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .ticker-text {
+            font-size: 13px;
+            color: var(--red);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Navigation Tabs */
+        .nav-tabs {
+            background: var(--bg-panel);
+            border-bottom: 2px solid var(--border-color);
+            display: flex;
+            gap: 2px;
+            padding: 0 20px;
+        }
+
+        .nav-tab {
+            padding: 12px 24px;
+            cursor: pointer;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 14px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            position: relative;
+            transition: all 0.2s;
+        }
+
+        .nav-tab:hover {
+            color: var(--cyan);
+        }
+
+        .nav-tab.active {
+            color: var(--cyan);
+            text-shadow: 0 0 8px var(--cyan);
+        }
+
+        .nav-tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--cyan);
+            box-shadow: 0 0 10px var(--cyan);
+        }
+
+        .tab-badge {
+            display: inline-block;
+            background: var(--red);
+            color: white;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 10px;
+            margin-left: 6px;
+        }
+
+        /* Main Content */
+        .main-content {
+            padding: 20px;
+            height: calc(100vh - 128px);
+            overflow-y: auto;
+        }
+
+        .module {
+            display: none;
+        }
+
+        .module.active {
+            display: block;
+        }
+
+        /* Panel */
+        .panel {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            margin-bottom: 20px;
+        }
+
+        .panel-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-color);
+            border-top: 2px solid var(--cyan);
+            box-shadow: 0 0 10px rgba(0, 200, 255, 0.3);
+            font-family: 'Orbitron', sans-serif;
+            font-size: 14px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--cyan);
+        }
+
+        .panel-body {
+            padding: 16px;
+        }
+
+        /* Status Bar */
+        .statusbar {
+            height: 24px;
+            background: var(--bg-panel);
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            font-size: 11px;
+            font-family: 'Share Tech Mono', monospace;
+            color: var(--text-secondary);
+            gap: 20px;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+        }
+
+        .status-item {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--green);
+            box-shadow: 0 0 6px var(--green);
+        }
+
+        /* Grid layouts */
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+        .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+
+        /* Stat Card */
+        .stat-card {
+            background: rgba(10, 15, 26, 0.8);
+            border: 1px solid var(--border-color);
+            padding: 16px;
+            position: relative;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+        }
+
+        .stat-card.critical::before { background: var(--red); box-shadow: 0 0 8px var(--red); }
+        .stat-card.warning::before { background: var(--amber); box-shadow: 0 0 8px var(--amber); }
+        .stat-card.safe::before { background: var(--green); box-shadow: 0 0 8px var(--green); }
+        .stat-card.info::before { background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+
+        .stat-number {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 48px;
+            font-weight: 900;
+            line-height: 1;
+            margin-bottom: 8px;
+        }
+
+        .stat-card.critical .stat-number { color: var(--red); }
+        .stat-card.warning .stat-number { color: var(--amber); }
+        .stat-card.safe .stat-number { color: var(--green); }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+        }
+
+        .stat-subtitle {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+        }
+
+        .progress-bar {
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--cyan);
+            transition: width 0.3s;
+        }
+
+        .confidence-pct {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 11px;
+            color: var(--cyan);
+            margin-top: 4px;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 8px 16px;
+            border: 1px solid var(--cyan);
+            background: transparent;
+            color: var(--cyan);
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn:hover {
+            background: var(--cyan);
+            color: var(--bg-dark);
+            box-shadow: 0 0 15px var(--cyan);
+        }
+
+        .btn.btn-red {
+            border-color: var(--red);
+            color: var(--red);
+        }
+
+        .btn.btn-red:hover {
+            background: var(--red);
+            color: white;
+        }
+
+        /* SVG Map */
+        #tacticalMap {
+            width: 100%;
+            height: 600px;
+            background: #000;
+            border: 1px solid var(--border-color);
+        }
+
+        @keyframes pulse-ring {
+            0% {
+                r: 8;
+                opacity: 0.8;
+            }
+            100% {
+                r: 30;
+                opacity: 0;
+            }
+        }
+
+        .pulse-ring {
+            animation: pulse-ring 2s infinite;
+        }
+
+        /* Lists */
+        .unit-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .unit-item {
+            padding: 10px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .unit-item:hover {
+            background: rgba(0, 200, 255, 0.05);
+        }
+
+        .unit-callsign {
+            font-weight: 700;
+            color: var(--cyan);
+        }
+
+        .unit-coords {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        .status-badge {
+            padding: 3px 8px;
+            border-radius: 2px;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .status-badge.active { background: rgba(0, 255, 136, 0.2); color: var(--green); }
+        .status-badge.standby { background: rgba(255, 170, 0, 0.2); color: var(--amber); }
+
+        /* Threat Feed */
+        .threat-feed {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .threat-item {
+            padding: 12px;
+            border-left: 3px solid var(--cyan);
+            background: rgba(10, 15, 26, 0.5);
+            margin-bottom: 8px;
+            animation: slideIn 0.3s;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(-20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .threat-item.critical { border-left-color: var(--red); }
+        .threat-item.warning { border-left-color: var(--amber); }
+
+        .threat-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+        }
+
+        .threat-time {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        .threat-type {
+            padding: 2px 8px;
+            border-radius: 2px;
+            font-size: 10px;
+            font-weight: 700;
+        }
+
+        .threat-type.critical { background: var(--red); color: white; }
+        .threat-type.warning { background: var(--amber); color: black; }
+        .threat-type.info { background: var(--cyan); color: black; }
+
+        .threat-message {
+            font-size: 13px;
+            margin-bottom: 4px;
+        }
+
+        .threat-coords {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        /* Channel List */
+        .channel-list {
+            border-right: 1px solid var(--border-color);
+        }
+
+        .channel-item {
+            padding: 12px;
+            border-bottom: 1px solid var(--border-color);
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.2s;
+        }
+
+        .channel-item:hover,
+        .channel-item.active {
+            background: rgba(0, 200, 255, 0.1);
+        }
+
+        .channel-name {
+            font-weight: 700;
+            color: var(--cyan);
+        }
+
+        .channel-members {
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        .unread-badge {
+            background: var(--red);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 10px;
+        }
+
+        /* Message Bubbles */
+        .messages-area {
+            height: 400px;
+            overflow-y: auto;
+            padding: 16px;
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        .message {
+            margin-bottom: 16px;
+            display: flex;
+            gap: 12px;
+        }
+
+        .message.own {
+            flex-direction: row-reverse;
+        }
+
+        .avatar {
+            width: 36px;
+            height: 36px;
+            background: var(--cyan);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--bg-dark);
+        }
+
+        .message-content {
+            max-width: 60%;
+        }
+
+        .message-header {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 4px;
+            align-items: center;
+        }
+
+        .sender-name {
+            font-weight: 700;
+            font-size: 13px;
+        }
+
+        .message-time {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        .message-bubble {
+            background: rgba(0, 200, 255, 0.1);
+            border: 1px solid var(--cyan);
+            padding: 10px 14px;
+            border-radius: 4px;
+        }
+
+        .message.own .message-bubble {
+            background: rgba(0, 255, 136, 0.1);
+            border-color: var(--green);
+        }
+
+        .encrypted-badge {
+            font-size: 10px;
+            color: var(--green);
+            margin-top: 4px;
+        }
+
+        .message-input-area {
+            padding: 12px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            gap: 8px;
+        }
+
+        input[type="text"],
+        textarea {
+            flex: 1;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 8px 12px;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 14px;
+        }
+
+        input[type="text"]:focus,
+        textarea:focus {
+            outline: none;
+            border-color: var(--cyan);
+        }
+
+        /* Canvas */
+        #droneCamera {
+            width: 100%;
+            height: 400px;
+            background: #000;
+            border: 1px solid var(--border-color);
+        }
+
+        .hud-overlay {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 12px;
+            color: var(--green);
+            text-shadow: 0 0 5px var(--green);
+        }
+
+        /* Drone Fleet */
+        .drone-item {
+            background: rgba(10, 15, 26, 0.8);
+            border: 1px solid var(--border-color);
+            padding: 12px;
+        }
+
+        .drone-name {
+            font-weight: 700;
+            color: var(--cyan);
+            margin-bottom: 6px;
+        }
+
+        .battery-bar {
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 6px;
+        }
+
+        .battery-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--green), var(--cyan));
+        }
+
+        /* Flight Controls */
+        .control-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .control-btn {
+            padding: 20px;
+            background: rgba(0, 200, 255, 0.1);
+            border: 1px solid var(--cyan);
+            color: var(--cyan);
+            font-family: 'Orbitron', sans-serif;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .control-btn:hover {
+            background: var(--cyan);
+            color: var(--bg-dark);
+        }
+
+        .slider-control {
+            margin-bottom: 16px;
+        }
+
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+            font-size: 12px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+        }
+
+        /* Charts */
+        .chart-container {
+            height: 200px;
+            position: relative;
+        }
+
+        .bar-chart {
+            display: flex;
+            align-items: flex-end;
+            height: 100%;
+            gap: 8px;
+            padding: 10px 0;
+        }
+
+        .bar {
+            flex: 1;
+            background: var(--cyan);
+            position: relative;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .bar:hover {
+            opacity: 0.7;
+        }
+
+        .bar-label {
+            position: absolute;
+            bottom: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 10px;
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+
+        /* Table */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .data-table th,
+        .data-table td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 12px;
+        }
+
+        .data-table th {
+            background: rgba(0, 200, 255, 0.1);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--cyan);
+        }
+
+        .outcome-success { color: var(--green); }
+        .outcome-abort { color: var(--red); }
+        .classification-ts { color: var(--red); }
+        .classification-secret { color: var(--amber); }
+
+        /* ── AI Threat Analysis Dashboard ── */
+
+        .module-header {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 10px 16px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-top: 2px solid var(--cyan);
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+
+        .module-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--cyan);
+            letter-spacing: 2px;
+            text-shadow: 0 0 8px var(--cyan);
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 3px 10px;
+            border-radius: 3px;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            background: rgba(0, 200, 255, 0.15);
+            color: var(--cyan);
+            border: 1px solid var(--cyan);
+        }
+
+        .badge-demo {
+            background: rgba(0, 200, 200, 0.15);
+            color: #00e5cc;
+            border-color: #00e5cc;
+        }
+
+        .badge-warn {
+            background: rgba(255, 170, 0, 0.15);
+            color: var(--amber);
+            border-color: var(--amber);
+        }
+
+        .badge-green {
+            background: rgba(0, 255, 136, 0.15);
+            color: var(--green);
+            border-color: var(--green);
+        }
+
+        .last-updated {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-left: auto;
+        }
+
+        .threat-summary {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+            gap: 16px;
+            padding: 12px 16px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            margin-bottom: 12px;
+        }
+
+        .summary-item {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 2px;
+            min-width: 60px;
+        }
+
+        .summary-label {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 10px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .summary-value {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-primary);
+            line-height: 1;
+        }
+
+        .severity-critical { color: var(--red); text-shadow: 0 0 6px var(--red); }
+        .severity-high     { color: #ff7700; }
+        .severity-medium   { color: var(--amber); }
+        .severity-low      { color: var(--green); }
+
+        .trend-indicator {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 12px;
+            color: var(--text-secondary);
+            line-height: 1;
+        }
+
+        .threat-list {
+            max-height: 300px;
+            overflow-y: auto;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            margin-bottom: 12px;
+        }
+
+        .timeline-section {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            padding: 12px 16px;
+            margin-bottom: 12px;
+        }
+
+        .timeline-controls {
+            display: flex;
+            flex-direction: row;
+            gap: 6px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+
+        .time-window-btn {
+            padding: 5px 12px;
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .time-window-btn:hover {
+            border-color: var(--cyan);
+            color: var(--cyan);
+        }
+
+        .time-window-btn.active {
+            background: rgba(0, 200, 255, 0.15);
+            border-color: var(--cyan);
+            color: var(--cyan);
+            box-shadow: 0 0 8px rgba(0, 200, 255, 0.3);
+        }
+
+        .threat-timeline {
+            position: relative;
+            height: 40px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+        }
+
+        .timeline-empty {
+            text-align: center;
+            padding: 10px;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 11px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .heatmap-toggle-btn {
+            padding: 7px 18px;
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 12px;
+        }
+
+        .heatmap-toggle-btn:hover {
+            border-color: var(--cyan);
+            color: var(--cyan);
+            background: rgba(0, 200, 255, 0.1);
+        }
+
+        .breakdown-panel {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-top: 2px solid var(--cyan);
+            padding: 12px 16px;
+            margin-bottom: 12px;
+        }
+
+        .breakdown-header {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--cyan);
+            letter-spacing: 2px;
+            margin-bottom: 10px;
+        }
+
+        .breakdown-row {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .breakdown-label {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 12px;
+            color: var(--text-primary);
+            min-width: 150px;
+        }
+
+        .breakdown-sensor {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 10px;
+            color: var(--text-secondary);
+            min-width: 70px;
+        }
+
+        .breakdown-bar-container {
+            flex: 1;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .breakdown-bar {
+            height: 100%;
+            background: var(--cyan);
+            border-radius: 2px;
+            transition: width 0.3s ease;
+        }
+
+        .breakdown-pct {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 11px;
+            color: var(--cyan);
+            min-width: 40px;
+            text-align: right;
+        }
+
+        /* ── Threat List Rows ── */
+        .threat-row {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .threat-row:hover {
+            background: rgba(0, 200, 255, 0.06);
+        }
+
+        @keyframes threatSlideIn {
+            from { transform: translateX(-20px); opacity: 0; }
+            to   { transform: translateX(0);     opacity: 1; }
+        }
+
+        .threat-row-new {
+            animation: threatSlideIn 0.3s ease forwards;
+        }
+
+        .severity-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 2px;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            min-width: 60px;
+            text-align: center;
+        }
+
+        .severity-badge.severity-critical { background: rgba(255, 51, 68, 0.25); color: var(--red); border: 1px solid var(--red); }
+        .severity-badge.severity-high     { background: rgba(255, 119, 0, 0.2);  color: #ff7700;    border: 1px solid #ff7700; }
+        .severity-badge.severity-medium   { background: rgba(255, 170, 0, 0.2);  color: var(--amber); border: 1px solid var(--amber); }
+        .severity-badge.severity-low      { background: rgba(0, 255, 136, 0.15); color: var(--green); border: 1px solid var(--green); }
+
+        .threat-id {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 10px;
+            color: var(--text-secondary);
+        }
+
+        .threat-sector {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 10px;
+            color: var(--text-secondary);
+            margin-left: auto;
+        }
+
+        .confidence-bar-container {
+            flex: 1;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 2px;
+            overflow: hidden;
+            min-width: 60px;
+        }
+
+        .confidence-bar {
+            height: 100%;
+            border-radius: 2px;
+            transition: width 300ms ease;
+        }
+
+        .confidence-green { background: var(--green); }
+        .confidence-amber { background: var(--amber); }
+        .confidence-red   { background: var(--red); }
+
+        /* ── Pattern Groups ── */
+        .pattern-group {
+            border: 1px solid var(--border-color);
+            margin: 6px 8px;
+            padding: 0;
+        }
+
+        .pattern-critical {
+            border-color: var(--red);
+            box-shadow: 0 0 6px rgba(255, 51, 68, 0.3);
+        }
+
+        .pattern-header {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            cursor: pointer;
+            background: rgba(0, 200, 255, 0.05);
+            transition: background 0.15s;
+        }
+
+        .pattern-header:hover {
+            background: rgba(0, 200, 255, 0.1);
+        }
+
+        .pattern-name {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--cyan);
+            flex: 1;
+        }
+
+        .pattern-count {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 10px;
+            color: var(--text-secondary);
+        }
+
+        .pattern-confidence {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 10px;
+            color: var(--cyan);
+        }
+
+        .pattern-toggle {
+            font-size: 10px;
+            color: var(--text-secondary);
+            transition: transform 0.2s;
+        }
+
+        .pattern-members {
+            padding-left: 16px;
+            border-top: 1px solid var(--border-color);
+        }
+    </style>
+</head>
+<body>
+    <!-- Top Bar -->
+    <div class="topbar">
+        <div class="logo">⬡ AEGIS</div>
+        <div class="status-pills">
+            <div class="pill nominal">NOMINAL</div>
+            <div class="pill warning">1 WARNING</div>
+        </div>
+        <div class="stats-summary">
+            <div class="stat-item">
+                <span class="stat-label">UNITS:</span>
+                <span class="stat-value" id="unitCount">12</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">DRONES:</span>
+                <span class="stat-value" id="droneCount">5</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">THREATS:</span>
+                <span class="stat-value" id="threatCount">3</span>
+            </div>
+        </div>
+        <div class="utc-clock" id="utcClock">00:00:00 UTC</div>
+    </div>
+
+    <!-- Alert Ticker -->
+    <div class="alert-ticker">
+        <span class="ticker-icon">⚠</span>
+        <span class="ticker-text">ALERT: Hostile contact detected in SECTOR 3A - Classification CRITICAL - Dispatch authorized</span>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="nav-tabs">
+        <button class="nav-tab active" onclick="showModule('map')">
+            <span>●</span> MAP & TRACKING
+        </button>
+        <button class="nav-tab" onclick="showModule('threats')">
+            <span>●</span> THREAT DETECTION <span class="tab-badge">3</span>
+        </button>
+        <button class="nav-tab" onclick="showModule('comms')">
+            <span>●</span> SECURE COMMS <span class="tab-badge">5</span>
+        </button>
+        <button class="nav-tab" onclick="showModule('drones')">
+            <span>●</span> DRONE CONTROL
+        </button>
+        <button class="nav-tab" onclick="showModule('analytics')">
+            <span>●</span> ANALYTICS
+        </button>
+        <button class="nav-tab" onclick="showModule('cyber')">
+            <span>●</span> CYBER SECURITY <span class="tab-badge">2</span>
+        </button>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="main-content">
+        <!-- MODULE 1: MAP & TRACKING -->
+        <div id="module-map" class="module active">
+            <div class="grid-2">
+                <div>
+                    <div class="panel">
+                        <div class="panel-header">Tactical Map - Operational Theater</div>
+                        <div class="panel-body" style="padding: 0;">
+                            <svg id="tacticalMap" viewBox="0 0 900 600">
+                                <!-- Grid pattern -->
+                                <defs>
+                                    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                                        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(0,200,255,0.1)" stroke-width="0.5"/>
+                                    </pattern>
+                                    <pattern id="majorGrid" width="200" height="200" patternUnits="userSpaceOnUse">
+                                        <path d="M 200 0 L 0 0 0 200" fill="none" stroke="rgba(0,200,255,0.3)" stroke-width="1"/>
+                                    </pattern>
+                                </defs>
+
+                                <!-- Background -->
+                                <rect width="900" height="600" fill="#000"/>
+                                <rect width="900" height="600" fill="url(#grid)"/>
+                                <rect width="900" height="600" fill="url(#majorGrid)"/>
+
+                                <!-- Topographic rings -->
+                                <ellipse cx="450" cy="300" rx="350" ry="250" fill="none" stroke="rgba(0,200,255,0.1)" stroke-width="1"/>
+                                <ellipse cx="450" cy="300" rx="250" ry="180" fill="none" stroke="rgba(0,200,255,0.15)" stroke-width="1"/>
+                                <ellipse cx="450" cy="300" rx="150" ry="100" fill="none" stroke="rgba(0,200,255,0.2)" stroke-width="1"/>
+
+                                <!-- Zones -->
+                                <rect x="50" y="50" width="300" height="200" fill="none" stroke="var(--green)" stroke-width="2" stroke-dasharray="10,5" opacity="0.3"/>
+                                <text x="60" y="70" fill="var(--green)" font-size="12" font-family="Share Tech Mono">SECURE ZONE</text>
+
+                                <rect x="550" y="350" width="250" height="180" fill="none" stroke="var(--red)" stroke-width="2" stroke-dasharray="10,5" opacity="0.3"/>
+                                <text x="560" y="370" fill="var(--red)" font-size="12" font-family="Share Tech Mono">HOSTILE ZONE</text>
+
+                                <!-- Sector labels -->
+                                <text x="100" y="300" fill="rgba(255,255,255,0.3)" font-size="40" font-family="Orbitron" font-weight="900">1A</text>
+                                <text x="400" y="150" fill="rgba(255,255,255,0.3)" font-size="40" font-family="Orbitron" font-weight="900">2A</text>
+                                <text x="650" y="250" fill="rgba(255,255,255,0.3)" font-size="40" font-family="Orbitron" font-weight="900">3A</text>
+                                <text x="400" y="450" fill="rgba(255,255,255,0.3)" font-size="40" font-family="Orbitron" font-weight="900">4A</text>
+                                <text x="100" y="550" fill="rgba(255,255,255,0.3)" font-size="40" font-family="Orbitron" font-weight="900">5A</text>
+
+                                <!-- Friendly units (green triangles) -->
+                                <polygon id="unit1" points="150,150 160,170 140,170" fill="var(--green)" opacity="0.8"/>
+                                <text x="165" y="165" fill="var(--green)" font-size="10" font-family="Share Tech Mono">ALPHA-1</text>
+
+                                <polygon id="unit2" points="280,120 290,140 270,140" fill="var(--green)" opacity="0.8"/>
+                                <text x="295" y="135" fill="var(--green)" font-size="10" font-family="Share Tech Mono">BRAVO-2</text>
+
+                                <polygon id="unit3" points="200,350 210,370 190,370" fill="var(--green)" opacity="0.8"/>
+                                <text x="215" y="365" fill="var(--green)" font-size="10" font-family="Share Tech Mono">CHARLIE-3</text>
+
+                                <!-- Threats (red squares with pulsing ring) -->
+                                <g id="threat1">
+                                    <circle class="pulse-ring" cx="650" cy="420" r="8" fill="none" stroke="var(--red)" stroke-width="2"/>
+                                    <rect x="645" y="415" width="10" height="10" fill="var(--red)"/>
+                                    <text x="665" y="425" fill="var(--red)" font-size="10" font-family="Share Tech Mono">THR-001</text>
+                                </g>
+
+                                <g id="threat2">
+                                    <circle class="pulse-ring" cx="720" cy="480" r="8" fill="none" stroke="var(--red)" stroke-width="2" style="animation-delay: 0.5s"/>
+                                    <rect x="715" y="475" width="10" height="10" fill="var(--red)"/>
+                                    <text x="735" y="485" fill="var(--red)" font-size="10" font-family="Share Tech Mono">THR-002</text>
+                                </g>
+
+                                <!-- Drones (cyan circles with orbit ring) -->
+                                <g id="drone1">
+                                    <circle cx="400" cy="250" r="15" fill="none" stroke="var(--cyan)" stroke-width="1" stroke-dasharray="5,3" opacity="0.4"/>
+                                    <circle cx="400" cy="250" r="5" fill="var(--cyan)"/>
+                                    <text x="420" y="255" fill="var(--cyan)" font-size="10" font-family="Share Tech Mono">UAV-01</text>
+                                </g>
+
+                                <g id="drone2">
+                                    <circle cx="550" cy="180" r="15" fill="none" stroke="var(--cyan)" stroke-width="1" stroke-dasharray="5,3" opacity="0.4"/>
+                                    <circle cx="550" cy="180" r="5" fill="var(--cyan)"/>
+                                    <text x="570" y="185" fill="var(--cyan)" font-size="10" font-family="Share Tech Mono">UAV-02</text>
+                                </g>
+
+                                <!-- Base/HQ -->
+                                <circle cx="100" cy="500" r="12" fill="var(--amber)" opacity="0.8"/>
+                                <text x="120" y="505" fill="var(--amber)" font-size="12" font-family="Share Tech Mono" font-weight="bold">HQ BASE</text>
+
+                                <!-- Communication lines -->
+                                <line x1="100" y1="500" x2="150" y2="150" stroke="var(--cyan)" stroke-width="1" stroke-dasharray="3,3" opacity="0.3"/>
+                                <line x1="100" y1="500" x2="280" y2="120" stroke="var(--cyan)" stroke-width="1" stroke-dasharray="3,3" opacity="0.3"/>
+
+                                <!-- Legend -->
+                                <g transform="translate(700, 50)">
+                                    <rect width="180" height="120" fill="rgba(0,0,0,0.7)" stroke="var(--border-color)" stroke-width="1"/>
+                                    <text x="10" y="20" fill="var(--cyan)" font-size="12" font-family="Orbitron" font-weight="700">LEGEND</text>
+
+                                    <polygon points="15,40 20,50 10,50" fill="var(--green)"/>
+                                    <text x="30" y="48" fill="var(--text-primary)" font-size="10">Friendly Unit</text>
+
+                                    <rect x="10" y="60" width="8" height="8" fill="var(--red)"/>
+                                    <text x="30" y="68" fill="var(--text-primary)" font-size="10">Hostile</text>
+
+                                    <circle cx="15" cy="85" r="4" fill="var(--cyan)"/>
+                                    <text x="30" y="88" fill="var(--text-primary)" font-size="10">Drone/UAV</text>
+
+                                    <circle cx="15" cy="105" r="5" fill="var(--amber)"/>
+                                    <text x="30" y="108" fill="var(--text-primary)" font-size="10">Base/HQ</text>
+                                </g>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="panel">
+                        <div class="panel-header">Unit Roster</div>
+                        <div class="panel-body">
+                            <div class="unit-list">
+                                <div class="unit-item">
+                                    <div>
+                                        <div class="unit-callsign">ALPHA-1</div>
+                                        <div class="unit-coords">34.0522°N, 118.2437°W | ALT: 120m</div>
+                                    </div>
+                                    <span class="status-badge active">ACTIVE</span>
+                                </div>
+                                <div class="unit-item">
+                                    <div>
+                                        <div class="unit-callsign">BRAVO-2</div>
+                                        <div class="unit-coords">34.0612°N, 118.2567°W | ALT: 95m</div>
+                                    </div>
+                                    <span class="status-badge active">ACTIVE</span>
+                                </div>
+                                <div class="unit-item">
+                                    <div>
+                                        <div class="unit-callsign">CHARLIE-3</div>
+                                        <div class="unit-coords">34.0445°N, 118.2398°W | ALT: 110m</div>
+                                    </div>
+                                    <span class="status-badge active">ACTIVE</span>
+                                </div>
+                                <div class="unit-item">
+                                    <div>
+                                        <div class="unit-callsign">DELTA-4</div>
+                                        <div class="unit-coords">34.0588°N, 118.2701°W | ALT: 88m</div>
+                                    </div>
+                                    <span class="status-badge standby">STANDBY</span>
+                                </div>
+                                <div class="unit-item">
+                                    <div>
+                                        <div class="unit-callsign">ECHO-5</div>
+                                        <div class="unit-coords">34.0332°N, 118.2211°W | ALT: 102m</div>
+                                    </div>
+                                    <span class="status-badge active">ACTIVE</span>
+                                </div>
+                            </div>
+
+                            <div style="margin-top: 20px; padding: 12px; background: rgba(0,200,255,0.05); border: 1px solid var(--cyan);">
+                                <div style="font-weight: 700; color: var(--cyan); margin-bottom: 8px;">SELECTED: ALPHA-1</div>
+                                <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Unit Type: Infantry Squad</div>
+                                <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Sector: 1A</div>
+                                <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Personnel: 8</div>
+                                <div style="font-size: 12px; color: var(--text-secondary);">Battery: 87%</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODULE 2: THREAT DETECTION -->
+        <div id="module-threats" class="module">
+
+            <!-- Module header bar -->
+            <div class="module-header">
+                <span class="module-title">THREAT DETECTION</span>
+                <span id="patterns-count" class="badge">0 PATTERNS DETECTED</span>
+                <span id="demo-badge" class="badge badge-demo" style="display:none">DEMO MODE</span>
+                <span id="feed-degraded" class="badge badge-warn" style="display:none">⚠ FEED DEGRADED</span>
+                <span id="ai-high-confidence-badge" class="badge badge-green" style="display:none">AI HIGH CONFIDENCE</span>
+                <span id="last-updated" class="last-updated">--</span>
+            </div>
+
+            <!-- Summary panel -->
+            <div id="threat-summary" class="threat-summary">
+                <div class="summary-item">
+                    <span class="summary-label">TOTAL</span>
+                    <span id="summary-total" class="summary-value">0</span>
+                </div>
+                <div class="summary-item">
+                    <span class="summary-label">CRITICAL</span>
+                    <span id="summary-critical" class="summary-value severity-critical">0</span>
+                    <span id="trend-critical" class="trend-indicator">—</span>
+                </div>
+                <div class="summary-item">
+                    <span class="summary-label">HIGH</span>
+                    <span id="summary-high" class="summary-value severity-high">0</span>
+                    <span id="trend-high" class="trend-indicator">—</span>
+                </div>
+                <div class="summary-item">
+                    <span class="summary-label">MEDIUM</span>
+                    <span id="summary-medium" class="summary-value severity-medium">0</span>
+                    <span id="trend-medium" class="trend-indicator">—</span>
+                </div>
+                <div class="summary-item">
+                    <span class="summary-label">LOW</span>
+                    <span id="summary-low" class="summary-value severity-low">0</span>
+                    <span id="trend-low" class="trend-indicator">—</span>
+                </div>
+                <div class="summary-item">
+                    <span class="summary-label">AVG CONFIDENCE</span>
+                    <span id="summary-avg-confidence" class="summary-value">--</span>
+                </div>
+                <div class="summary-item">
+                    <span class="summary-label">PATTERNS</span>
+                    <span id="summary-patterns" class="summary-value">0</span>
+                </div>
+            </div>
+
+            <!-- Threat list container -->
+            <div id="threat-list" class="threat-list">
+                <!-- Threat rows and pattern groups rendered here by JS -->
+            </div>
+
+            <!-- Timeline section -->
+            <div class="timeline-section">
+                <div class="timeline-controls">
+                    <button class="time-window-btn" data-window="15">15 MIN</button>
+                    <button class="time-window-btn" data-window="30">30 MIN</button>
+                    <button class="time-window-btn active" data-window="60">60 MIN</button>
+                    <button class="time-window-btn" data-window="240">4 HR</button>
+                    <button class="time-window-btn" data-window="1440">24 HR</button>
+                </div>
+                <div id="threat-timeline" class="threat-timeline">
+                    <!-- Timeline markers rendered here by JS -->
+                </div>
+                <div id="timeline-empty" class="timeline-empty" style="display:none">NO THREAT ACTIVITY IN SELECTED WINDOW</div>
+            </div>
+
+            <!-- Heatmap toggle -->
+            <button id="heatmap-toggle" class="heatmap-toggle-btn">TOGGLE HEATMAP</button>
+
+            <!-- Confidence breakdown panel -->
+            <div id="breakdown-panel" class="breakdown-panel" style="display:none">
+                <div class="breakdown-header">AI CONFIDENCE BREAKDOWN</div>
+                <div class="breakdown-row" id="breakdown-radar">
+                    <span class="breakdown-label">Radar Classification</span>
+                    <span class="breakdown-sensor" id="breakdown-radar-sensor">--</span>
+                    <div class="breakdown-bar-container">
+                        <div class="breakdown-bar" id="breakdown-radar-bar" style="width:0%"></div>
+                    </div>
+                    <span class="breakdown-pct" id="breakdown-radar-pct">N/A</span>
+                </div>
+                <div class="breakdown-row" id="breakdown-visual">
+                    <span class="breakdown-label">Visual Recognition</span>
+                    <span class="breakdown-sensor" id="breakdown-visual-sensor">--</span>
+                    <div class="breakdown-bar-container">
+                        <div class="breakdown-bar" id="breakdown-visual-bar" style="width:0%"></div>
+                    </div>
+                    <span class="breakdown-pct" id="breakdown-visual-pct">N/A</span>
+                </div>
+                <div class="breakdown-row" id="breakdown-behavioral">
+                    <span class="breakdown-label">Behavioral Analysis</span>
+                    <span class="breakdown-sensor" id="breakdown-behavioral-sensor">--</span>
+                    <div class="breakdown-bar-container">
+                        <div class="breakdown-bar" id="breakdown-behavioral-bar" style="width:0%"></div>
+                    </div>
+                    <span class="breakdown-pct" id="breakdown-behavioral-pct">N/A</span>
+                </div>
+                <div class="breakdown-row" id="breakdown-sigint">
+                    <span class="breakdown-label">Signal Intelligence</span>
+                    <span class="breakdown-sensor" id="breakdown-sigint-sensor">--</span>
+                    <div class="breakdown-bar-container">
+                        <div class="breakdown-bar" id="breakdown-sigint-bar" style="width:0%"></div>
+                    </div>
+                    <span class="breakdown-pct" id="breakdown-sigint-pct">N/A</span>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- MODULE 3: SECURE COMMS -->
+        <div id="module-comms" class="module">
+            <div class="grid-2">
+                <div class="panel" style="grid-column: span 2;">
+                    <div class="panel-header" id="channelHeader">Command Net - AES-256-GCM Encrypted</div>
+                    <div style="display: grid; grid-template-columns: 220px 1fr;">
+                        <div class="channel-list">
+                            <div class="channel-item active" onclick="selectChannel('Command Net')">
+                                <div>
+                                    <div class="channel-name">📡 Command Net</div>
+                                    <div class="channel-members">12 members</div>
+                                </div>
+                                <span class="unread-badge">2</span>
+                            </div>
+                            <div class="channel-item" onclick="selectChannel('Alpha Team')">
+                                <div>
+                                    <div class="channel-name">🔫 Alpha Team</div>
+                                    <div class="channel-members">8 members</div>
+                                </div>
+                                <span class="unread-badge">1</span>
+                            </div>
+                            <div class="channel-item" onclick="selectChannel('Bravo Team')">
+                                <div>
+                                    <div class="channel-name">🔫 Bravo Team</div>
+                                    <div class="channel-members">8 members</div>
+                                </div>
+                            </div>
+                            <div class="channel-item" onclick="selectChannel('Drone Ops')">
+                                <div>
+                                    <div class="channel-name">🚁 Drone Ops</div>
+                                    <div class="channel-members">4 members</div>
+                                </div>
+                                <span class="unread-badge">2</span>
+                            </div>
+                            <div class="channel-item" onclick="selectChannel('Intel Desk')">
+                                <div>
+                                    <div class="channel-name">🎯 Intel Desk</div>
+                                    <div class="channel-members">6 members</div>
+                                </div>
+                            </div>
+                            <div class="channel-item" onclick="selectChannel('Emergency')">
+                                <div>
+                                    <div class="channel-name">⚠ Emergency</div>
+                                    <div class="channel-members">24 members</div>
+                                </div>
+                            </div>
+
+                            <div style="margin-top: 20px; padding: 12px; border-top: 1px solid var(--border-color);">
+                                <div style="font-size: 11px; color: var(--green); margin-bottom: 6px;">🔒 AES-256-GCM ACTIVE</div>
+                                <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 6px;">TLS 1.3 Transport</div>
+                                <div style="font-size: 11px; color: var(--text-secondary);">Mesh Nodes: 8</div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="messages-area" id="messagesArea">
+                                <div class="message">
+                                    <div class="avatar">CM</div>
+                                    <div class="message-content">
+                                        <div class="message-header">
+                                            <span class="sender-name">CDR.MASON</span>
+                                            <span class="message-time">23:42:15 UTC</span>
+                                        </div>
+                                        <div class="message-bubble">
+                                            All units maintain radio silence in Sector 3A. Possible signal intercept attempt detected.
+                                        </div>
+                                        <div class="encrypted-badge">🔒 AES-256 ENCRYPTED</div>
+                                    </div>
+                                </div>
+
+                                <div class="message">
+                                    <div class="avatar">A1</div>
+                                    <div class="message-content">
+                                        <div class="message-header">
+                                            <span class="sender-name">ALPHA-1</span>
+                                            <span class="message-time">23:43:02 UTC</span>
+                                        </div>
+                                        <div class="message-bubble">
+                                            Copy that, switching to encrypted mesh network. Standing by for further orders.
+                                        </div>
+                                        <div class="encrypted-badge">🔒 AES-256 ENCRYPTED</div>
+                                    </div>
+                                </div>
+
+                                <div class="message">
+                                    <div class="avatar">IO</div>
+                                    <div class="message-content">
+                                        <div class="message-header">
+                                            <span class="sender-name">INTEL.OPS</span>
+                                            <span class="message-time">23:44:18 UTC</span>
+                                        </div>
+                                        <div class="message-bubble">
+                                            Confirming hostile SIGINT activity. UAV-02 redirected for aerial surveillance. ETA 4 minutes.
+                                        </div>
+                                        <div class="encrypted-badge">🔒 AES-256 ENCRYPTED</div>
+                                    </div>
+                                </div>
+
+                                <div class="message own">
+                                    <div class="avatar">ME</div>
+                                    <div class="message-content">
+                                        <div class="message-header">
+                                            <span class="sender-name">YOU</span>
+                                            <span class="message-time">23:45:01 UTC</span>
+                                        </div>
+                                        <div class="message-bubble">
+                                            Acknowledged. Threat level elevated to CRITICAL. Authorization code DELTA-9-TANGO confirmed.
+                                        </div>
+                                        <div class="encrypted-badge">🔒 AES-256 ENCRYPTED</div>
+                                    </div>
+                                </div>
+
+                                <div class="message">
+                                    <div class="avatar">B2</div>
+                                    <div class="message-content">
+                                        <div class="message-header">
+                                            <span class="sender-name">BRAVO-2</span>
+                                            <span class="message-time">23:46:33 UTC</span>
+                                        </div>
+                                        <div class="message-bubble">
+                                            Visual confirmation on hostile vehicle convoy. Coordinates: 34.0588°N, 118.2701°W. Requesting permission to engage.
+                                        </div>
+                                        <div class="encrypted-badge">🔒 AES-256 ENCRYPTED</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="message-input-area">
+                                <input type="text" id="messageInput" placeholder="[CLASSIFICATION: SECRET] Type message..." onkeypress="if(event.key==='Enter')sendMessage()">
+                                <button class="btn" onclick="sendMessage()">SEND</button>
+                                <button class="btn">🎤 VOICE</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODULE 4: DRONE CONTROL -->
+        <div id="module-drones" class="module">
+            <div class="grid-2">
+                <div class="panel">
+                    <div class="panel-header">Live Drone Camera Feed - UAV-01</div>
+                    <div class="panel-body" style="padding: 0; position: relative;">
+                        <canvas id="droneCamera" width="800" height="400"></canvas>
+                        <div style="position: absolute; top: 10px; left: 10px; font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--green); text-shadow: 0 0 5px var(--green);">
+                            <div>ALT: <span id="hudAlt">120</span>m</div>
+                            <div>SPD: <span id="hudSpeed">45</span> km/h</div>
+                        </div>
+                        <div style="position: absolute; top: 10px; right: 10px; font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--green); text-shadow: 0 0 5px var(--green); text-align: right;">
+                            <div>BAT: <span id="hudBat">87</span>%</div>
+                            <div>SIG: STRONG</div>
+                        </div>
+                        <div style="position: absolute; bottom: 10px; left: 10px; font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--green); text-shadow: 0 0 5px var(--green);">
+                            <div>GPS: 34.0522°N, 118.2437°W</div>
+                        </div>
+                        <div style="position: absolute; bottom: 10px; right: 10px; font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--green); text-shadow: 0 0 5px var(--green); text-align: right;">
+                            <div>HDG: <span id="hudHeading">045</span>°</div>
+                        </div>
+                        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 40px; height: 40px;">
+                            <div style="position: absolute; width: 100%; height: 1px; background: var(--green); top: 50%;"></div>
+                            <div style="position: absolute; height: 100%; width: 1px; background: var(--green); left: 50%;"></div>
+                            <div style="position: absolute; width: 100%; height: 100%; border: 2px solid var(--green); border-radius: 50%;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-header">Drone Fleet Status</div>
+                    <div class="panel-body">
+                        <div class="grid-2">
+                            <div class="drone-item">
+                                <div class="drone-name">UAV-01</div>
+                                <div style="font-size: 11px; color: var(--green); margin-bottom: 4px;">● AIRBORNE</div>
+                                <div style="font-size: 11px; color: var(--text-secondary);">ALT: 120m</div>
+                                <div class="battery-bar">
+                                    <div class="battery-fill" style="width: 87%;"></div>
+                                </div>
+                            </div>
+
+                            <div class="drone-item">
+                                <div class="drone-name">UAV-02</div>
+                                <div style="font-size: 11px; color: var(--green); margin-bottom: 4px;">● AIRBORNE</div>
+                                <div style="font-size: 11px; color: var(--text-secondary);">ALT: 95m</div>
+                                <div class="battery-bar">
+                                    <div class="battery-fill" style="width: 73%;"></div>
+                                </div>
+                            </div>
+
+                            <div class="drone-item">
+                                <div class="drone-name">UAV-03</div>
+                                <div style="font-size: 11px; color: var(--amber); margin-bottom: 4px;">⚡ CHARGING</div>
+                                <div style="font-size: 11px; color: var(--text-secondary);">ALT: 0m</div>
+                                <div class="battery-bar">
+                                    <div class="battery-fill" style="width: 34%;"></div>
+                                </div>
+                            </div>
+
+                            <div class="drone-item">
+                                <div class="drone-name">UAV-04</div>
+                                <div style="font-size: 11px; color: var(--cyan); margin-bottom: 4px;">✓ READY</div>
+                                <div style="font-size: 11px; color: var(--text-secondary);">ALT: 0m</div>
+                                <div class="battery-bar">
+                                    <div class="battery-fill" style="width: 100%;"></div>
+                                </div>
+                            </div>
+
+                            <div class="drone-item">
+                                <div class="drone-name">UAV-05</div>
+                                <div style="font-size: 11px; color: var(--green); margin-bottom: 4px;">● AIRBORNE</div>
+                                <div style="font-size: 11px; color: var(--text-secondary);">ALT: 210m</div>
+                                <div class="battery-bar">
+                                    <div class="battery-fill" style="width: 61%;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid-2" style="margin-top: 20px;">
+                <div class="panel">
+                    <div class="panel-header">Flight Controls - UAV-01</div>
+                    <div class="panel-body">
+                        <div class="control-grid">
+                            <div></div>
+                            <button class="control-btn">▲ FWD</button>
+                            <div></div>
+                            <button class="control-btn">◀ LEFT</button>
+                            <button class="control-btn">⬤ HOME</button>
+                            <button class="control-btn">RIGHT ▶</button>
+                            <div></div>
+                            <button class="control-btn">▼ BACK</button>
+                            <div></div>
+                        </div>
+
+                        <div class="grid-2">
+                            <button class="btn">ASCEND</button>
+                            <button class="btn">DESCEND</button>
+                            <button class="btn">📸 PHOTO</button>
+                            <button class="btn">🏠 RTH</button>
+                        </div>
+
+                        <div class="slider-control">
+                            <div class="slider-label">
+                                <span>ALTITUDE</span>
+                                <span id="altValue">120m</span>
+                            </div>
+                            <input type="range" min="10" max="500" value="120" id="altSlider" oninput="updateHUD('alt', this.value)">
+                        </div>
+
+                        <div class="slider-control">
+                            <div class="slider-label">
+                                <span>SPEED</span>
+                                <span id="speedValue">45 km/h</span>
+                            </div>
+                            <input type="range" min="0" max="120" value="45" id="speedSlider" oninput="updateHUD('speed', this.value)">
+                        </div>
+
+                        <div class="slider-control">
+                            <div class="slider-label">
+                                <span>CAMERA ANGLE</span>
+                                <span id="cameraValue">-45°</span>
+                            </div>
+                            <input type="range" min="-90" max="90" value="-45" id="cameraSlider" oninput="updateHUD('camera', this.value)">
+                        </div>
+
+                        <button class="btn btn-red" style="width: 100%; margin-top: 12px;">⚠ EMERGENCY LAND</button>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-header">Mission Planner</div>
+                    <div class="panel-body">
+                        <div style="margin-bottom: 16px;">
+                            <div style="font-weight: 700; color: var(--cyan); margin-bottom: 8px;">Active Mission: RECON-Alpha-1</div>
+                            <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">Status: IN PROGRESS | ETA: 8 min</div>
+
+                            <div style="background: rgba(0,0,0,0.3); padding: 12px; border: 1px solid var(--border-color);">
+                                <div style="font-size: 12px; margin-bottom: 8px;">Waypoints:</div>
+                                <div id="waypointList">
+                                    <div style="font-size: 11px; color: var(--green); margin-bottom: 4px;">✓ WP1: 34.0522°N, 118.2437°W</div>
+                                    <div style="font-size: 11px; color: var(--cyan); margin-bottom: 4px;">→ WP2: 34.0588°N, 118.2567°W</div>
+                                    <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 4px;">WP3: 34.0445°N, 118.2398°W</div>
+                                    <div style="font-size: 11px; color: var(--text-secondary);">WP4: RTH</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button class="btn" style="width: 100%;" onclick="addWaypoint()">+ ADD WAYPOINT</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODULE 5: ANALYTICS -->
+        <div id="module-analytics" class="module">
+            <div class="grid-3">
+                <div class="panel">
+                    <div class="panel-header">Mission Activity</div>
+                    <div class="panel-body">
+                        <div class="chart-container">
+                            <div class="bar-chart" id="missionChart">
+                                <!-- Generated by JS -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-header">Threat Trends</div>
+                    <div class="panel-body">
+                        <div class="chart-container">
+                            <div class="bar-chart" id="threatChart">
+                                <!-- Generated by JS -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-header">Drone Utilization</div>
+                    <div class="panel-body">
+                        <div class="chart-container">
+                            <div class="bar-chart" id="droneChart">
+                                <!-- Generated by JS -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid-2" style="margin-top: 20px;">
+                <div class="panel">
+                    <div class="panel-header">Key Metrics</div>
+                    <div class="panel-body">
+                        <div class="grid-2">
+                            <div style="text-align: center; padding: 16px; border: 1px solid var(--border-color);">
+                                <div style="font-size: 32px; font-family: 'Orbitron', sans-serif; color: var(--cyan);">247</div>
+                                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">Total Operations</div>
+                                <div style="font-size: 10px; color: var(--green); margin-top: 4px;">↑ 12% vs last week</div>
+                            </div>
+                            <div style="text-align: center; padding: 16px; border: 1px solid var(--border-color);">
+                                <div style="font-size: 32px; font-family: 'Orbitron', sans-serif; color: var(--green);">98.4%</div>
+                                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">Success Rate</div>
+                                <div style="font-size: 10px; color: var(--green); margin-top: 4px;">↑ 2.1% vs last week</div>
+                            </div>
+                            <div style="text-align: center; padding: 16px; border: 1px solid var(--border-color);">
+                                <div style="font-size: 32px; font-family: 'Orbitron', sans-serif; color: var(--amber);">1,847</div>
+                                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">Flight Hours</div>
+                                <div style="font-size: 10px; color: var(--cyan); margin-top: 4px;">↑ 8% vs last week</div>
+                            </div>
+                            <div style="text-align: center; padding: 16px; border: 1px solid var(--border-color);">
+                                <div style="font-size: 32px; font-family: 'Orbitron', sans-serif; color: var(--red);">52</div>
+                                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">Threats Neutralized</div>
+                                <div style="font-size: 10px; color: var(--green); margin-top: 4px;">↑ 18% vs last week</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-header">Unit Performance</div>
+                    <div class="panel-body">
+                        <div class="grid-2">
+                            <div style="text-align: center; padding: 16px; border: 1px solid var(--border-color);">
+                                <div style="font-size: 32px; font-family: 'Orbitron', sans-serif; color: var(--green);">A+</div>
+                                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">Alpha Team</div>
+                                <div style="height: 30px; margin-top: 8px;">
+                                    <svg width="80" height="30" viewBox="0 0 80 30">
+                                        <polyline points="0,25 16,20 32,15 48,12 64,10 80,8" fill="none" stroke="var(--green)" stroke-width="2"/>
+                                    </svg>
+                                </div>
+                            </div>
+                            <div style="text-align: center; padding: 16px; border: 1px solid var(--border-color);">
+                                <div style="font-size: 32px; font-family: 'Orbitron', sans-serif; color: var(--green);">A</div>
+                                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">Bravo Team</div>
+                                <div style="height: 30px; margin-top: 8px;">
+                                    <svg width="80" height="30" viewBox="0 0 80 30">
+                                        <polyline points="0,20 16,18 32,15 48,17 64,13 80,12" fill="none" stroke="var(--green)" stroke-width="2"/>
+                                    </svg>
+                                </div>
+                            </div>
+                            <div style="text-align: center; padding: 16px; border: 1px solid var(--border-color);">
+                                <div style="font-size: 32px; font-family: 'Orbitron', sans-serif; color: var(--cyan);">B+</div>
+                                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">Charlie Team</div>
+                                <div style="height: 30px; margin-top: 8px;">
+                                    <svg width="80" height="30" viewBox="0 0 80 30">
+                                        <polyline points="0,22 16,20 32,19 48,18 64,16 80,15" fill="none" stroke="var(--cyan)" stroke-width="2"/>
+                                    </svg>
+                                </div>
+                            </div>
+                            <div style="text-align: center; padding: 16px; border: 1px solid var(--border-color);">
+                                <div style="font-size: 32px; font-family: 'Orbitron', sans-serif; color: var(--cyan);">B</div>
+                                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">Delta Team</div>
+                                <div style="height: 30px; margin-top: 8px;">
+                                    <svg width="80" height="30" viewBox="0 0 80 30">
+                                        <polyline points="0,25 16,23 32,22 48,20 64,19 80,18" fill="none" stroke="var(--cyan)" stroke-width="2"/>
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel" style="margin-top: 20px;">
+                <div class="panel-header">System Health</div>
+                <div class="panel-body">
+                    <div class="grid-4">
+                        <div>
+                            <div style="font-size: 12px; margin-bottom: 8px; display: flex; justify-content: space-between;">
+                                <span>CPU Usage</span>
+                                <span id="cpuValue" style="font-family: 'Share Tech Mono', monospace; color: var(--cyan);">34%</span>
+                            </div>
+                            <div class="progress-bar" style="height: 8px;">
+                                <div id="cpuBar" class="progress-fill" style="width: 34%;"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div style="font-size: 12px; margin-bottom: 8px; display: flex; justify-content: space-between;">
+                                <span>Memory</span>
+                                <span id="memValue" style="font-family: 'Share Tech Mono', monospace; color: var(--cyan);">67%</span>
+                            </div>
+                            <div class="progress-bar" style="height: 8px;">
+                                <div id="memBar" class="progress-fill" style="width: 67%;"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div style="font-size: 12px; margin-bottom: 8px; display: flex; justify-content: space-between;">
+                                <span>Network I/O</span>
+                                <span style="font-family: 'Share Tech Mono', monospace; color: var(--cyan);">42%</span>
+                            </div>
+                            <div class="progress-bar" style="height: 8px;">
+                                <div class="progress-fill" style="width: 42%;"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div style="font-size: 12px; margin-bottom: 8px; display: flex; justify-content: space-between;">
+                                <span>Storage</span>
+                                <span style="font-family: 'Share Tech Mono', monospace; color: var(--cyan);">58%</span>
+                            </div>
+                            <div class="progress-bar" style="height: 8px;">
+                                <div class="progress-fill" style="width: 58%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel" style="margin-top: 20px;">
+                <div class="panel-header">Mission Log</div>
+                <div class="panel-body">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Mission ID</th>
+                                <th>Type</th>
+                                <th>Unit</th>
+                                <th>Sector</th>
+                                <th>Start</th>
+                                <th>Duration</th>
+                                <th>Outcome</th>
+                                <th>Classification</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>MSN-20260317-001</td>
+                                <td>Recon</td>
+                                <td>Alpha-1</td>
+                                <td>3A</td>
+                                <td>22:15 UTC</td>
+                                <td>1h 42m</td>
+                                <td class="outcome-success">SUCCESS</td>
+                                <td class="classification-ts">TOP SECRET</td>
+                            </tr>
+                            <tr>
+                                <td>MSN-20260317-002</td>
+                                <td>Surveillance</td>
+                                <td>UAV-02</td>
+                                <td>2A</td>
+                                <td>21:30 UTC</td>
+                                <td>2h 18m</td>
+                                <td class="outcome-success">SUCCESS</td>
+                                <td class="classification-secret">SECRET</td>
+                            </tr>
+                            <tr>
+                                <td>MSN-20260317-003</td>
+                                <td>Patrol</td>
+                                <td>Bravo-2</td>
+                                <td>1A</td>
+                                <td>20:00 UTC</td>
+                                <td>3h 05m</td>
+                                <td class="outcome-success">SUCCESS</td>
+                                <td class="classification-secret">SECRET</td>
+                            </tr>
+                            <tr>
+                                <td>MSN-20260316-047</td>
+                                <td>Strike</td>
+                                <td>Charlie-3</td>
+                                <td>3A</td>
+                                <td>18:45 UTC</td>
+                                <td>0h 52m</td>
+                                <td class="outcome-abort">ABORT</td>
+                                <td class="classification-ts">TOP SECRET</td>
+                            </tr>
+                            <tr>
+                                <td>MSN-20260316-046</td>
+                                <td>Recon</td>
+                                <td>UAV-01</td>
+                                <td>4A</td>
+                                <td>17:20 UTC</td>
+                                <td>1h 25m</td>
+                                <td class="outcome-success">SUCCESS</td>
+                                <td class="classification-secret">SECRET</td>
+                            </tr>
+                            <tr>
+                                <td>MSN-20260316-045</td>
+                                <td>Escort</td>
+                                <td>Delta-4</td>
+                                <td>5A</td>
+                                <td>16:00 UTC</td>
+                                <td>2h 10m</td>
+                                <td class="outcome-success">SUCCESS</td>
+                                <td class="classification-secret">SECRET</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODULE 6: CYBER SECURITY -->
+        <div id="module-cyber" class="module">
+            <div class="grid-2">
+                <div class="panel" style="grid-column: span 2;">
+                    <div class="panel-header">Network Topology Map</div>
+                    <div class="panel-body" style="padding: 20px;">
+                        <svg width="100%" height="400" viewBox="0 0 800 400">
+                            <!-- Firewall (center) -->
+                            <circle cx="400" cy="200" r="40" fill="rgba(0,255,136,0.2)" stroke="var(--green)" stroke-width="2"/>
+                            <text x="400" y="205" text-anchor="middle" fill="var(--green)" font-size="12" font-family="Share Tech Mono">FIREWALL</text>
+
+                            <!-- Gateway (top) -->
+                            <circle cx="400" cy="80" r="30" fill="rgba(0,200,255,0.2)" stroke="var(--cyan)" stroke-width="2"/>
+                            <text x="400" y="85" text-anchor="middle" fill="var(--cyan)" font-size="11" font-family="Share Tech Mono">GATEWAY</text>
+                            <line x1="400" y1="110" x2="400" y2="160" stroke="var(--cyan)" stroke-width="2"/>
+
+                            <!-- Database -->
+                            <circle cx="250" cy="200" r="30" fill="rgba(255,170,0,0.2)" stroke="var(--amber)" stroke-width="2"/>
+                            <text x="250" y="205" text-anchor="middle" fill="var(--amber)" font-size="11" font-family="Share Tech Mono">DB</text>
+                            <line x1="280" y1="200" x2="360" y2="200" stroke="var(--cyan)" stroke-width="2"/>
+
+                            <!-- Web Server -->
+                            <circle cx="550" cy="200" r="30" fill="rgba(0,200,255,0.2)" stroke="var(--cyan)" stroke-width="2"/>
+                            <text x="550" y="205" text-anchor="middle" fill="var(--cyan)" font-size="11" font-family="Share Tech Mono">WEB</text>
+                            <line x1="520" y1="200" x2="440" y2="200" stroke="var(--cyan)" stroke-width="2"/>
+
+                            <!-- C2 Server -->
+                            <circle cx="300" cy="320" r="30" fill="rgba(138,43,226,0.2)" stroke="#8a2be2" stroke-width="2"/>
+                            <text x="300" y="325" text-anchor="middle" fill="#8a2be2" font-size="11" font-family="Share Tech Mono">C2</text>
+                            <line x1="330" y1="305" x2="380" y2="220" stroke="var(--cyan)" stroke-width="2"/>
+
+                            <!-- IDS/IPS -->
+                            <circle cx="500" cy="320" r="30" fill="rgba(0,255,136,0.2)" stroke="var(--green)" stroke-width="2"/>
+                            <text x="500" y="325" text-anchor="middle" fill="var(--green)" font-size="11" font-family="Share Tech Mono">IDS/IPS</text>
+                            <line x1="470" y1="305" x2="420" y2="220" stroke="var(--cyan)" stroke-width="2"/>
+
+                            <!-- External Threats -->
+                            <circle cx="650" cy="80" r="25" fill="rgba(255,51,68,0.2)" stroke="var(--red)" stroke-width="2"/>
+                            <text x="650" y="85" text-anchor="middle" fill="var(--red)" font-size="10" font-family="Share Tech Mono">THREAT-1</text>
+
+                            <circle cx="700" cy="150" r="25" fill="rgba(255,51,68,0.2)" stroke="var(--red)" stroke-width="2"/>
+                            <text x="700" y="155" text-anchor="middle" fill="var(--red)" font-size="10" font-family="Share Tech Mono">THREAT-2</text>
+
+                            <!-- Attack lines (animated) -->
+                            <line x1="650" y1="105" x2="430" y2="80" stroke="var(--red)" stroke-width="2" stroke-dasharray="5,5" opacity="0.6">
+                                <animate attributeName="stroke-dashoffset" from="0" to="10" dur="1s" repeatCount="indefinite"/>
+                            </line>
+                            <line x1="700" y1="150" x2="430" y2="80" stroke="var(--red)" stroke-width="2" stroke-dasharray="5,5" opacity="0.6">
+                                <animate attributeName="stroke-dashoffset" from="0" to="10" dur="1s" repeatCount="indefinite"/>
+                            </line>
+
+                            <!-- Labels -->
+                            <text x="400" y="380" text-anchor="middle" fill="var(--text-secondary)" font-size="11" font-family="Rajdhani">INTERNAL NETWORK</text>
+                            <text x="675" y="40" text-anchor="middle" fill="var(--red)" font-size="11" font-family="Rajdhani">EXTERNAL THREATS</text>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid-2" style="margin-top: 20px;">
+                <div class="panel">
+                    <div class="panel-header">Security Alerts</div>
+                    <div class="panel-body">
+                        <div class="threat-feed">
+                            <div class="threat-item critical">
+                                <div class="threat-header">
+                                    <span class="threat-type critical">CRITICAL</span>
+                                    <span class="threat-time">23:47:12 UTC</span>
+                                </div>
+                                <div class="threat-message">SQL injection attempt detected from 185.220.101.45</div>
+                                <div class="threat-coords">Target: /api/v1/auth/login | BLOCKED</div>
+                            </div>
+
+                            <div class="threat-item warning">
+                                <div class="threat-header">
+                                    <span class="threat-type warning">HIGH</span>
+                                    <span class="threat-time">23:45:33 UTC</span>
+                                </div>
+                                <div class="threat-message">Brute force attack detected - 127 failed login attempts</div>
+                                <div class="threat-coords">Source: 198.51.100.23 | IP BLOCKED</div>
+                            </div>
+
+                            <div class="threat-item warning">
+                                <div class="threat-header">
+                                    <span class="threat-type warning">HIGH</span>
+                                    <span class="threat-time">23:43:05 UTC</span>
+                                </div>
+                                <div class="threat-message">Port scan detected on database server</div>
+                                <div class="threat-coords">Source: 203.0.113.78 | MONITORING</div>
+                            </div>
+
+                            <div class="threat-item info">
+                                <div class="threat-header">
+                                    <span class="threat-type info">MEDIUM</span>
+                                    <span class="threat-time">23:40:18 UTC</span>
+                                </div>
+                                <div class="threat-message">Suspicious user-agent detected in API request</div>
+                                <div class="threat-coords">Source: 192.0.2.146 | INVESTIGATING</div>
+                            </div>
+
+                            <div class="threat-item info">
+                                <div class="threat-header">
+                                    <span class="threat-type info">MEDIUM</span>
+                                    <span class="threat-time">23:38:42 UTC</span>
+                                </div>
+                                <div class="threat-message">Rate limit exceeded for API endpoint</div>
+                                <div class="threat-coords">Source: 198.18.0.87 | THROTTLED</div>
+                            </div>
+
+                            <div class="threat-item info">
+                                <div class="threat-header">
+                                    <span class="threat-type info">LOW</span>
+                                    <span class="threat-time">23:35:11 UTC</span>
+                                </div>
+                                <div class="threat-message">TLS handshake from deprecated cipher suite</div>
+                                <div class="threat-coords">Source: 203.0.113.201 | REJECTED</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="panel">
+                        <div class="panel-header">IDS Stats</div>
+                        <div class="panel-body">
+                            <div class="grid-2">
+                                <div style="text-align: center; padding: 12px; border: 1px solid var(--border-color);">
+                                    <div style="font-size: 28px; font-family: 'Orbitron', sans-serif; color: var(--green);">842</div>
+                                    <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">Blocked Today</div>
+                                </div>
+                                <div style="text-align: center; padding: 12px; border: 1px solid var(--border-color);">
+                                    <div style="font-size: 28px; font-family: 'Orbitron', sans-serif; color: var(--red);">3</div>
+                                    <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">Live Threats</div>
+                                </div>
+                                <div style="text-align: center; padding: 12px; border: 1px solid var(--border-color);">
+                                    <div style="font-size: 28px; font-family: 'Orbitron', sans-serif; color: var(--amber);">27</div>
+                                    <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">Suspicious IPs</div>
+                                </div>
+                                <div style="text-align: center; padding: 12px; border: 1px solid var(--border-color);">
+                                    <div style="font-size: 28px; font-family: 'Orbitron', sans-serif; color: var(--cyan);">99.7%</div>
+                                    <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">Defense Rate</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="panel" style="margin-top: 20px;">
+                        <div class="panel-header">Intrusion Log</div>
+                        <div class="panel-body" style="font-family: 'Share Tech Mono', monospace; font-size: 11px;">
+                            <div style="margin-bottom: 6px; color: var(--red);">
+                                23:47:12 | 185.220.101.45 | SQL_INJECT_ATTEMPT | CRITICAL
+                            </div>
+                            <div style="margin-bottom: 6px; color: var(--red);">
+                                23:45:33 | 198.51.100.23 | BRUTE_FORCE | BLOCKED
+                            </div>
+                            <div style="margin-bottom: 6px; color: var(--amber);">
+                                23:43:05 | 203.0.113.78 | PORT_SCAN | MONITORING
+                            </div>
+                            <div style="margin-bottom: 6px; color: var(--green);">
+                                23:40:18 | 192.0.2.146 | SUSPICIOUS_UA | LOGGED
+                            </div>
+                            <div style="margin-bottom: 6px; color: var(--green);">
+                                23:38:42 | 198.18.0.87 | RATE_LIMIT | THROTTLED
+                            </div>
+                            <div style="color: var(--cyan);">
+                                23:35:11 | 203.0.113.201 | WEAK_CIPHER | REJECTED
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Status Bar -->
+    <div class="statusbar">
+        <div class="status-item">
+            <span class="status-dot"></span>
+            <span>ENCRYPTION: AES-256-GCM</span>
+        </div>
+        <div class="status-item">
+            <span class="status-dot"></span>
+            <span>SAT LINK: ACTIVE</span>
+        </div>
+        <div class="status-item">
+            <span class="status-dot"></span>
+            <span>MESH NODES: 8/8</span>
+        </div>
+        <div class="status-item">
+            <span>BW: 4.2 Gbps</span>
+        </div>
+        <div style="margin-left: auto; display: flex; gap: 12px;">
+            <span>OPERATOR: CDR.MASON</span>
+            <span style="color: var(--cyan);">CLEARANCE: TOP SECRET</span>
+        </div>
+    </div>
+
+    <script>
+        // Update UTC clock
+        function updateClock() {
+            const now = new Date();
+            const utcTime = now.toISOString().substr(11, 8) + ' UTC';
+            document.getElementById('utcClock').textContent = utcTime;
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // Module switching
+        function showModule(moduleName) {
+            document.querySelectorAll('.module').forEach(m => m.classList.remove('active'));
+            document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+
+            document.getElementById('module-' + moduleName).classList.add('active');
+            event.target.closest('.nav-tab').classList.add('active');
+        }
+
+        // Animate map units
+        setInterval(() => {
+            ['unit1', 'unit2', 'unit3'].forEach(id => {
+                const unit = document.getElementById(id);
+                if (unit) {
+                    const transform = unit.getAttribute('transform') || 'translate(0,0)';
+                    const dx = (Math.random() - 0.5) * 4;
+                    const dy = (Math.random() - 0.5) * 4;
+                    unit.setAttribute('transform', `translate(${dx}, ${dy})`);
+                }
+            });
+
+            ['drone1', 'drone2'].forEach(id => {
+                const drone = document.getElementById(id);
+                if (drone) {
+                    const transform = drone.getAttribute('transform') || 'translate(0,0)';
+                    const dx = (Math.random() - 0.5) * 6;
+                    const dy = (Math.random() - 0.5) * 6;
+                    drone.setAttribute('transform', `translate(${dx}, ${dy})`);
+                }
+            });
+        }, 2000);
+
+        // Threat feed
+        const threats = [
+            {type: 'CRITICAL', msg: 'Hostile convoy detected moving north - Sector 3A', coords: '34.0588°N, 118.2701°W'},
+            {type: 'WARNING', msg: 'Unidentified aircraft entering restricted airspace', coords: '34.0445°N, 118.2398°W'},
+            {type: 'INFO', msg: 'Radar contact classified as commercial transport', coords: '34.0332°N, 118.2211°W'},
+            {type: 'CRITICAL', msg: 'Thermal signature indicates hostile personnel - 8 contacts', coords: '34.0612°N, 118.2567°W'},
+            {type: 'WARNING', msg: 'Signal jamming detected on frequency 437.5 MHz', coords: 'Multiple sectors'},
+            {type: 'INFO', msg: 'Routine patrol completed without incident - Alpha-1', coords: 'Sector 1A'},
+            {type: 'CRITICAL', msg: 'SAM site activation detected - immediate threat to air assets', coords: '34.0522°N, 118.2437°W'},
+            {type: 'WARNING', msg: 'Increased radio chatter on hostile frequencies', coords: 'Sector 3A-4A border'}
+        ];
+
+        let threatIndex = 0;
+        function addThreatItem() {
+            const feed = document.getElementById('threatFeed');
+            const threat = threats[threatIndex % threats.length];
+            const now = new Date();
+            const time = now.toISOString().substr(11, 8) + ' UTC';
+
+            const item = document.createElement('div');
+            item.className = 'threat-item ' + threat.type.toLowerCase();
+            item.innerHTML = `
+                <div class="threat-header">
+                    <span class="threat-type ${threat.type.toLowerCase()}">${threat.type}</span>
+                    <span class="threat-time">${time}</span>
+                </div>
+                <div class="threat-message">${threat.msg}</div>
+                <div class="threat-coords">${threat.coords}</div>
+            `;
+
+            feed.insertBefore(item, feed.firstChild);
+
+            if (feed.children.length > 8) {
+                feed.removeChild(feed.lastChild);
+            }
+
+            threatIndex++;
+        }
+
+        setInterval(addThreatItem, 6000);
+        for (let i = 0; i < 4; i++) {
+            addThreatItem();
+        }
+
+        // Channel selection
+        function selectChannel(name) {
+            document.querySelectorAll('.channel-item').forEach(c => c.classList.remove('active'));
+            event.target.closest('.channel-item').classList.add('active');
+            document.getElementById('channelHeader').textContent = name + ' - AES-256-GCM Encrypted';
+        }
+
+        // Send message
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const text = input.value.trim();
+            if (!text) return;
+
+            const messagesArea = document.getElementById('messagesArea');
+            const now = new Date();
+            const time = now.toISOString().substr(11, 8) + ' UTC';
+
+            const msg = document.createElement('div');
+            msg.className = 'message own';
+            msg.innerHTML = `
+                <div class="avatar">ME</div>
+                <div class="message-content">
+                    <div class="message-header">
+                        <span class="sender-name">YOU</span>
+                        <span class="message-time">${time}</span>
+                    </div>
+                    <div class="message-bubble">${text}</div>
+                    <div class="encrypted-badge">🔒 AES-256 ENCRYPTED</div>
+                </div>
+            `;
+
+            messagesArea.appendChild(msg);
+            messagesArea.scrollTop = messagesArea.scrollHeight;
+            input.value = '';
+        }
+
+        // Drone camera simulation
+        const canvas = document.getElementById('droneCamera');
+        const ctx = canvas.getContext('2d');
+        let scanY = 0;
+
+        function drawDroneCamera() {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, 800, 400);
+
+            // Draw terrain
+            ctx.strokeStyle = '#003300';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            for (let x = 0; x < 800; x += 20) {
+                const y = 300 + Math.sin(x * 0.05 + Date.now() * 0.001) * 50;
+                if (x === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+
+            // Draw target
+            const targetX = 400 + Math.sin(Date.now() * 0.001) * 100;
+            const targetY = 200 + Math.cos(Date.now() * 0.001) * 50;
+
+            ctx.strokeStyle = '#ff3344';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(targetX - 30, targetY - 30, 60, 60);
+            ctx.fillStyle = '#ff3344';
+            ctx.font = '12px "Share Tech Mono"';
+            ctx.fillText('HOSTILE 94%', targetX + 40, targetY);
+
+            // Crosshair
+            ctx.strokeStyle = '#00ff88';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(targetX - 40, targetY);
+            ctx.lineTo(targetX + 40, targetY);
+            ctx.moveTo(targetX, targetY - 40);
+            ctx.lineTo(targetX, targetY + 40);
+            ctx.stroke();
+
+            // Scan line
+            ctx.strokeStyle = 'rgba(0, 200, 255, 0.5)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, scanY);
+            ctx.lineTo(800, scanY);
+            ctx.stroke();
+
+            scanY = (scanY + 3) % 400;
+
+            // Grid overlay
+            ctx.strokeStyle = 'rgba(0, 200, 255, 0.1)';
+            ctx.lineWidth = 1;
+            for (let x = 0; x < 800; x += 50) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, 400);
+                ctx.stroke();
+            }
+            for (let y = 0; y < 400; y += 50) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(800, y);
+                ctx.stroke();
+            }
+
+            requestAnimationFrame(drawDroneCamera);
+        }
+        drawDroneCamera();
+
+        // HUD updates
+        function updateHUD(type, value) {
+            if (type === 'alt') {
+                document.getElementById('hudAlt').textContent = value;
+                document.getElementById('altValue').textContent = value + 'm';
+            } else if (type === 'speed') {
+                document.getElementById('hudSpeed').textContent = value;
+                document.getElementById('speedValue').textContent = value + ' km/h';
+            } else if (type === 'camera') {
+                document.getElementById('cameraValue').textContent = value + '°';
+            }
+        }
+
+        // Add waypoint
+        function addWaypoint() {
+            const list = document.getElementById('waypointList');
+            const wpNum = list.children.length + 1;
+            const lat = (34.0 + Math.random() * 0.1).toFixed(4);
+            const lng = (-118.3 + Math.random() * 0.1).toFixed(4);
+
+            const wp = document.createElement('div');
+            wp.style.cssText = 'font-size: 11px; color: var(--text-secondary); margin-bottom: 4px;';
+            wp.textContent = `WP${wpNum}: ${lat}°N, ${lng}°W`;
+            list.appendChild(wp);
+        }
+
+        // Generate analytics charts
+        function generateChart(containerId, color, days) {
+            const container = document.getElementById(containerId);
+            const dayLabels = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+
+            days.forEach((value, i) => {
+                const bar = document.createElement('div');
+                bar.className = 'bar';
+                bar.style.height = value + '%';
+                bar.style.background = color;
+                bar.title = `${dayLabels[i]}: ${value}`;
+
+                const label = document.createElement('div');
+                label.className = 'bar-label';
+                label.textContent = dayLabels[i];
+                bar.appendChild(label);
+
+                container.appendChild(bar);
+            });
+        }
+
+        generateChart('missionChart', 'var(--cyan)', [65, 72, 58, 81, 90, 67, 75]);
+        generateChart('threatChart', 'var(--red)', [23, 45, 67, 54, 38, 29, 42]);
+        generateChart('droneChart', 'var(--green)', [88, 92, 76, 85, 90, 82, 87]);
+
+        // System health animation
+        setInterval(() => {
+            const cpu = Math.floor(Math.random() * 30) + 20;
+            const mem = Math.floor(Math.random() * 20) + 60;
+
+            document.getElementById('cpuValue').textContent = cpu + '%';
+            document.getElementById('cpuBar').style.width = cpu + '%';
+            document.getElementById('memValue').textContent = mem + '%';
+            document.getElementById('memBar').style.width = mem + '%';
+        }, 3000);
+    </script>
+</body>
+</html>

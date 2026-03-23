@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Property 6: Last updated timestamp advances</title>
+    <script src="fc-shim.js"></script>
+    <style>
+        body { font-family: monospace; background: #0a0f1a; color: #e0e6ed; padding: 20px; }
+        .pass { color: #00ff88; }
+        .fail { color: #ff3344; }
+        pre { background: #020509; padding: 10px; border: 1px solid #1a3a52; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h2>Property 6: Last updated timestamp advances on success</h2>
+    <div id="result">Running...</div>
+    <pre id="details"></pre>
+
+    <!-- Required DOM elements -->
+    <div id="feed-degraded" style="display:none"></div>
+    <div id="demo-badge" style="display:none"></div>
+    <div id="last-updated"></div>
+    <div id="threat-list"></div>
+    <div id="breakdown-panel" style="display:none"></div>
+
+    <script src="../threat-analysis.js"></script>
+    <script>
+        // Feature: ai-threat-analysis-dashboard, Property 6: Last updated timestamp advances on success
+
+        const resultEl = document.getElementById('result');
+        const detailsEl = document.getElementById('details');
+
+        const dashboard = new ThreatDashboard('http://localhost:8000');
+
+        try {
+            fc.assert(
+                fc.property(
+                    // Generate a sorted array of increasing timestamps (ms since epoch)
+                    fc.array(
+                        fc.integer({ min: 1_000_000_000_000, max: 2_000_000_000_000 }),
+                        { minLength: 2, maxLength: 20 }
+                    ).map(arr => arr.sort((a, b) => a - b)),
+                    (timestamps) => {
+                        let prevTimestamp = null;
+
+                        for (const ms of timestamps) {
+                            const d = new Date(ms);
+                            dashboard.state.lastUpdated = d;
+
+                            const current = dashboard.state.lastUpdated.getTime();
+
+                            if (prevTimestamp !== null) {
+                                // Each new timestamp must be >= previous
+                                if (current < prevTimestamp) return false;
+                            }
+
+                            prevTimestamp = current;
+                        }
+                        return true;
+                    }
+                ),
+                { numRuns: 200 }
+            );
+
+            resultEl.innerHTML = '<span class="pass">✓ PASS — Property 6 holds across 200 runs</span>';
+        } catch (e) {
+            resultEl.innerHTML = '<span class="fail">✗ FAIL — Property 6 violated</span>';
+            detailsEl.textContent = e.toString();
+        }
+    </script>
+</body>
+</html>

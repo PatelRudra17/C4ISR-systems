@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Property 2: Every rendered threat entry contains confidence display</title>
+    <script src="fc-shim.js"></script>
+    <style>
+        body { font-family: monospace; background: #0a0f1a; color: #e0e6ed; padding: 20px; }
+        .pass { color: #00ff88; }
+        .fail { color: #ff3344; }
+        pre { background: #020509; padding: 10px; border: 1px solid #1a3a52; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h2>Property 2: Every rendered threat entry contains a confidence display</h2>
+    <div id="result">Running...</div>
+    <pre id="details"></pre>
+
+    <!-- Minimal DOM container for rendering -->
+    <div id="threat-list" style="display:none"></div>
+    <div id="breakdown-panel" style="display:none"></div>
+    <div id="feed-degraded" style="display:none"></div>
+    <div id="demo-badge" style="display:none"></div>
+    <div id="last-updated"></div>
+
+    <script src="../threat-analysis.js"></script>
+    <script>
+        // Feature: ai-threat-analysis-dashboard, Property 2: Every rendered threat entry contains a confidence display
+
+        const resultEl = document.getElementById('result');
+        const detailsEl = document.getElementById('details');
+
+        const SEVERITIES = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
+
+        const threatArb = fc.record({
+            threat_id: fc.string({ minLength: 3, maxLength: 10 }),
+            threat_type: fc.constantFrom('VEHICLE', 'AIRCRAFT', 'VESSEL', 'PERSONNEL'),
+            severity: fc.constantFrom(...SEVERITIES),
+            ai_confidence: fc.float({ min: 0, max: 1, noNaN: true }),
+            sector: fc.string({ minLength: 1, maxLength: 4 }),
+            pattern_id: fc.constant(null),
+            lat: fc.float({ min: 33.5, max: 35.0, noNaN: true }),
+            lng: fc.float({ min: -119.0, max: -117.0, noNaN: true }),
+            detected_at: fc.constant(new Date().toISOString()),
+            confidence_breakdown: fc.constant(null)
+        });
+
+        const dashboard = new ThreatDashboard('http://localhost:8000');
+
+        try {
+            fc.assert(
+                fc.property(
+                    fc.array(threatArb, { minLength: 1, maxLength: 8 }),
+                    (threats) => {
+                        // Ensure unique threat_ids to avoid DOM conflicts
+                        const seen = new Set();
+                        const unique = threats.filter(t => {
+                            if (seen.has(t.threat_id)) return false;
+                            seen.add(t.threat_id);
+                            return true;
+                        });
+                        if (unique.length === 0) return true;
+
+                        // Reset state and container
+                        dashboard.state.prevThreats = [];
+                        dashboard.state.threats = [];
+                        const container = document.getElementById('threat-list');
+                        container.innerHTML = '';
+
+                        // Render
+                        dashboard._renderThreatList(unique, []);
+
+                        // Check every .threat-row has .confidence-pct and .confidence-bar with width style
+                        const rows = container.querySelectorAll('.threat-row');
+                        if (rows.length === 0) return false;
+
+                        for (const row of rows) {
+                            const pct = row.querySelector('.confidence-pct');
+                            if (!pct || !pct.textContent.includes('%')) return false;
+
+                            const bar = row.querySelector('.confidence-bar');
+                            if (!bar) return false;
+                            if (!bar.style.width || bar.style.width === '') return false;
+                        }
+
+                        return true;
+                    }
+                ),
+                { numRuns: 100 }
+            );
+
+            resultEl.innerHTML = '<span class="pass">✓ PASS — Property 2 holds across 100 runs</span>';
+        } catch (e) {
+            resultEl.innerHTML = '<span class="fail">✗ FAIL — Property 2 violated</span>';
+            detailsEl.textContent = e.toString();
+        }
+    </script>
+</body>
+</html>

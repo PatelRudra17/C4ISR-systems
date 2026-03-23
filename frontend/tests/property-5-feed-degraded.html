@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Property 5: Feed degraded / restored round trip</title>
+    <script src="fc-shim.js"></script>
+    <style>
+        body { font-family: monospace; background: #0a0f1a; color: #e0e6ed; padding: 20px; }
+        .pass { color: #00ff88; }
+        .fail { color: #ff3344; }
+        pre { background: #020509; padding: 10px; border: 1px solid #1a3a52; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h2>Property 5: Feed degraded / restored round trip</h2>
+    <div id="result">Running...</div>
+    <pre id="details"></pre>
+
+    <!-- Required DOM elements -->
+    <div id="feed-degraded" style="display:none"></div>
+    <div id="demo-badge" style="display:none"></div>
+    <div id="last-updated"></div>
+    <div id="threat-list"></div>
+    <div id="breakdown-panel" style="display:none"></div>
+
+    <script src="../threat-analysis.js"></script>
+    <script>
+        // Feature: ai-threat-analysis-dashboard, Property 5: Feed degraded / restored round trip
+
+        const resultEl = document.getElementById('result');
+        const detailsEl = document.getElementById('details');
+
+        const dashboard = new ThreatDashboard('http://localhost:8000');
+        const feedEl = document.getElementById('feed-degraded');
+
+        try {
+            fc.assert(
+                fc.property(
+                    // Generate a sequence of booleans: true=success, false=failure
+                    fc.array(fc.boolean(), { minLength: 1, maxLength: 20 }),
+                    (sequence) => {
+                        for (const ok of sequence) {
+                            dashboard._setFeedStatus(ok);
+
+                            if (!ok) {
+                                // After failure: feed-degraded must be visible (display !== 'none')
+                                if (feedEl.style.display === 'none') return false;
+                            } else {
+                                // After success: feed-degraded must be hidden
+                                if (feedEl.style.display !== 'none') return false;
+                            }
+                        }
+                        return true;
+                    }
+                ),
+                { numRuns: 200 }
+            );
+
+            resultEl.innerHTML = '<span class="pass">✓ PASS — Property 5 holds across 200 runs</span>';
+        } catch (e) {
+            resultEl.innerHTML = '<span class="fail">✗ FAIL — Property 5 violated</span>';
+            detailsEl.textContent = e.toString();
+        }
+    </script>
+</body>
+</html>

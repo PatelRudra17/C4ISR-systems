@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Property 16: Heatmap cell weight computation</title>
+  <style>
+    body { font-family: monospace; background: #0a0a0a; color: #ccc; padding: 2rem; }
+    h1 { color: #00ffcc; font-size: 1.1rem; }
+    .result { margin-top: 1.5rem; font-size: 1.4rem; font-weight: bold; }
+    .pass { color: #00ff88; }
+    .fail { color: #ff4444; }
+    pre { background: #111; padding: 1rem; border-radius: 4px; overflow: auto; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <h1>Property 16: Heatmap cell weight computation</h1>
+  <p>Validates: Requirements 5.2, 5.3</p>
+  <div id="output"></div>
+  <div id="result" class="result"></div>
+
+  <script src="fc-shim.js"></script>
+  <script src="../threat-analysis.js"></script>
+  <script>
+    // Feature: ai-threat-analysis-dashboard, Property 16: Heatmap cell weight computation
+
+    const output = document.getElementById('output');
+    const resultEl = document.getElementById('result');
+
+    const dashboard = new ThreatDashboard('http://localhost:8000');
+
+    const SEVERITY_WEIGHTS = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 };
+    const LAT_MIN = 33.5, LAT_MAX = 35.0;
+    const LNG_MIN = -119.0, LNG_MAX = -117.0;
+    const ROWS = 10, COLS = 10;
+
+    function cellKey(lat, lng) {
+      const row = Math.min(ROWS - 1, Math.floor((lat - LAT_MIN) / (LAT_MAX - LAT_MIN) * ROWS));
+      const col = Math.min(COLS - 1, Math.floor((lng - LNG_MIN) / (LNG_MAX - LNG_MIN) * COLS));
+      return `${row},${col}`;
+    }
+
+    // Arbitrary: a threat within the lat/lng bounds
+    const threatArb = fc.record({
+      lat: fc.float({ min: LAT_MIN, max: LAT_MAX, noNaN: true }),
+      lng: fc.float({ min: LNG_MIN, max: LNG_MAX, noNaN: true }),
+      severity: fc.constantFrom('CRITICAL', 'HIGH', 'MEDIUM', 'LOW')
+    });
+
+    try {
+      fc.assert(
+        fc.property(
+          fc.array(threatArb, { minLength: 0, maxLength: 20 }),
+          (threats) => {
+            const weights = dashboard._computeHeatmapWeights(threats);
+
+            // Compute expected weights manually
+            const expected = new Map();
+            for (const threat of threats) {
+              const key = cellKey(threat.lat, threat.lng);
+              const w = SEVERITY_WEIGHTS[threat.severity];
+              expected.set(key, (expected.get(key) ?? 0) + w);
+            }
+
+            // Every key in expected must match weights map
+            for (const [key, expectedWeight] of expected.entries()) {
+              const actual = weights.get(key) ?? 0;
+              if (actual !== expectedWeight) return false;
+            }
+
+            // No extra keys in weights that aren't in expected
+            for (const [key] of weights.entries()) {
+              if (!expected.has(key)) return false;
+            }
+
+            // Empty cells (not in map) return 0
+            const emptyKey = '9,9';
+            if (!expected.has(emptyKey)) {
+              if ((weights.get(emptyKey) ?? 0) !== 0) return false;
+            }
+
+            return true;
+          }
+        ),
+        { numRuns: 200 }
+      );
+
+      output.innerHTML = '<pre>200 runs completed.\nAll threat sets produced correct heatmap cell weights:\n  - Weight = sum of SEVERITY_WEIGHTS for threats in each cell\n  - Empty cells return 0 (not present in map)</pre>';
+      resultEl.textContent = '✓ PASS';
+      resultEl.className = 'result pass';
+    } catch (err) {
+      output.innerHTML = '<pre>' + String(err).replace(/</g, '&lt;') + '</pre>';
+      resultEl.textContent = '✗ FAIL';
+      resultEl.className = 'result fail';
+    }
+  </script>
+</body>
+</html>

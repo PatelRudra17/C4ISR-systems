@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Property 4: New threats prepended / resolved threats removed</title>
+    <script src="fc-shim.js"></script>
+    <style>
+        body { font-family: monospace; background: #0a0f1a; color: #e0e6ed; padding: 20px; }
+        .pass { color: #00ff88; }
+        .fail { color: #ff3344; }
+        pre { background: #020509; padding: 10px; border: 1px solid #1a3a52; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h2>Property 4: New threats prepended / resolved threats removed</h2>
+    <div id="result">Running...</div>
+    <pre id="details"></pre>
+
+    <!-- Minimal ThreatDashboard stub for _diffThreats -->
+    <script src="../threat-analysis.js"></script>
+    <script>
+        // Feature: ai-threat-analysis-dashboard, Property 4: New threats are prepended; resolved threats are removed
+
+        const resultEl = document.getElementById('result');
+        const detailsEl = document.getElementById('details');
+
+        function makeThreat(id) {
+            return { threat_id: id, threat_type: 'VEHICLE', severity: 'HIGH', ai_confidence: 0.75, sector: '1A' };
+        }
+
+        const dashboard = new ThreatDashboard('http://localhost:8000');
+
+        try {
+            fc.assert(
+                fc.property(
+                    // Generate two sets of unique IDs (prev and next)
+                    fc.set(fc.string({ minLength: 3, maxLength: 8 }), { minLength: 0, maxLength: 10 }),
+                    fc.set(fc.string({ minLength: 3, maxLength: 8 }), { minLength: 0, maxLength: 10 }),
+                    (prevIds, nextIds) => {
+                        const prev = prevIds.map(makeThreat);
+                        const next = nextIds.map(makeThreat);
+
+                        const { added, removed } = dashboard._diffThreats(prev, next);
+
+                        const prevSet = new Set(prevIds);
+                        const nextSet = new Set(nextIds);
+
+                        // All added IDs must be in next but NOT in prev
+                        for (const t of added) {
+                            if (!nextSet.has(t.threat_id)) return false;
+                            if (prevSet.has(t.threat_id)) return false;
+                        }
+
+                        // All removed IDs must be in prev but NOT in next
+                        for (const t of removed) {
+                            if (!prevSet.has(t.threat_id)) return false;
+                            if (nextSet.has(t.threat_id)) return false;
+                        }
+
+                        // Every ID in next but not prev must appear in added
+                        for (const id of nextIds) {
+                            if (!prevSet.has(id)) {
+                                if (!added.some(t => t.threat_id === id)) return false;
+                            }
+                        }
+
+                        // Every ID in prev but not next must appear in removed
+                        for (const id of prevIds) {
+                            if (!nextSet.has(id)) {
+                                if (!removed.some(t => t.threat_id === id)) return false;
+                            }
+                        }
+
+                        return true;
+                    }
+                ),
+                { numRuns: 200 }
+            );
+
+            resultEl.innerHTML = '<span class="pass">✓ PASS — Property 4 holds across 200 runs</span>';
+        } catch (e) {
+            resultEl.innerHTML = '<span class="fail">✗ FAIL — Property 4 violated</span>';
+            detailsEl.textContent = e.toString();
+        }
+    </script>
+</body>
+</html>

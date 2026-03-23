@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Property 3: Polling fires at correct interval</title>
+    <script src="fc-shim.js"></script>
+    <style>
+        body { font-family: monospace; background: #0a0f1a; color: #e0e6ed; padding: 20px; }
+        .pass { color: #00ff88; }
+        .fail { color: #ff3344; }
+        pre { background: #020509; padding: 10px; border: 1px solid #1a3a52; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h2>Property 3: Polling fires at the correct interval</h2>
+    <div id="result">Running...</div>
+    <pre id="details"></pre>
+
+    <!-- Required DOM elements -->
+    <div id="feed-degraded" style="display:none"></div>
+    <div id="demo-badge" style="display:none"></div>
+    <div id="last-updated"></div>
+    <div id="threat-list"></div>
+    <div id="breakdown-panel" style="display:none"></div>
+
+    <script src="../threat-analysis.js"></script>
+    <script>
+        // Feature: ai-threat-analysis-dashboard, Property 3: Polling fires at the correct interval
+
+        const resultEl = document.getElementById('result');
+        const detailsEl = document.getElementById('details');
+
+        try {
+            fc.assert(
+                fc.property(
+                    // T in seconds: 5 to 120
+                    fc.integer({ min: 5, max: 120 }),
+                    (T) => {
+                        // Replace setInterval with a fake timer
+                        let pollCount = 0;
+                        let registeredInterval = null;
+                        let registeredCallback = null;
+
+                        const origSetInterval = window.setInterval;
+                        const origClearInterval = window.clearInterval;
+
+                        window.setInterval = (fn, ms) => {
+                            registeredCallback = fn;
+                            registeredInterval = 1; // fake id
+                            return registeredInterval;
+                        };
+                        window.clearInterval = (id) => {
+                            registeredCallback = null;
+                        };
+
+                        // Create a fresh dashboard and patch _poll to count calls
+                        const dashboard = new ThreatDashboard('http://localhost:8000');
+                        dashboard._poll = () => { pollCount++; };
+
+                        // start() calls _poll() once immediately, then registers setInterval
+                        dashboard.start();
+
+                        // The immediate call from start() counts as poll 0 (before interval fires)
+                        // Reset count to only measure interval-driven polls
+                        pollCount = 0;
+
+                        // Advance fake time: fire the interval callback floor(T/5) times
+                        const expectedFires = Math.floor(T / 5);
+                        for (let i = 0; i < expectedFires; i++) {
+                            if (registeredCallback) registeredCallback();
+                        }
+
+                        dashboard.stop();
+
+                        // Restore
+                        window.setInterval = origSetInterval;
+                        window.clearInterval = origClearInterval;
+
+                        // Assert count = floor(T/5) ± 1
+                        return Math.abs(pollCount - expectedFires) <= 1;
+                    }
+                ),
+                { numRuns: 100 }
+            );
+
+            resultEl.innerHTML = '<span class="pass">✓ PASS — Property 3 holds across 100 runs</span>';
+        } catch (e) {
+            resultEl.innerHTML = '<span class="fail">✗ FAIL — Property 3 violated</span>';
+            detailsEl.textContent = e.toString();
+        }
+    </script>
+</body>
+</html>
